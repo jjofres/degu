@@ -1,0 +1,8 @@
+setup.py
+degu/__init__.py
+degu/aux_tools.py
+degu.egg-info/PKG-INFO
+degu.egg-info/SOURCES.txt
+degu.egg-info/dependency_links.txt
+degu.egg-info/requires.txt
+degu.egg-info/top_level.txt
