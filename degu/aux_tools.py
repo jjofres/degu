@@ -748,3 +748,22 @@ def extract_relax_vs_static(
     nions_pair = {k: [relax_nions.get(k), static_nions.get(k)] for k in keys}
 
     return e0_pair, toten_pair, nions_pair
+
+def print_sumtest(dc_conv_test):
+    print('Total number of calculations:', len(dc_conv_test))
+    dc_jobs_ok = dc_conv_test.filter_by_value('overall_status', 'ok')
+    print('- jobs completed successfully:', len(dc_jobs_ok))
+    dc_jobs_err = dc_conv_test.filter_by_value('overall_status', 'error')
+    print('- jobs with errors:', len(dc_jobs_err))
+    types_of_errors = set(dc_jobs_err['error_type'])
+    for err_type in types_of_errors:
+        dc_err_type = dc_jobs_err.filter_by_value('error_type', err_type)
+        print(f'  - {err_type}: {len(dc_err_type)}')
+    print('- By KSPACING:')
+    for kspacing in sorted(set(dc_conv_test['kspacing'])):
+        dc_kspacing = dc_jobs_err.filter_by_value('kspacing', kspacing)
+        print(f'  - {kspacing}: {len(dc_kspacing)}')
+    print('- By ENCUT:')
+    for encut in sorted(set(dc_conv_test['encut'])):
+        dc_encut = dc_jobs_err.filter_by_value('encut', encut)
+        print(f'  - {encut}: {len(dc_encut)}')
