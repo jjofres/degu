@@ -163,7 +163,7 @@ def sort_EvV_by_volume(EvV_data):
         mass = vals.get("total_mass_g", [])
         count_Fe = vals.get("count_Fe", [])
         count_Cr = vals.get("count_Cr", [])
-        count_Sr = vals.get("count_Sr", [])
+        # count_Sr = vals.get("count_Sr", [])
 
         # If nothing there, just copy as-is
         if not vols:
@@ -174,14 +174,17 @@ def sort_EvV_by_volume(EvV_data):
                 "total_mass_g": list(mass),
                 "count_Fe": list(count_Fe),
                 "count_Cr": list(count_Cr),
-                "count_Sr": list(count_Sr),
+                # "count_Sr": list(count_Sr),
             }
             continue
 
         # zip -> sort by volume -> unzip
-        triples = sorted(zip(vols, Es, Ns, mass, count_Fe, count_Cr, count_Sr), key=lambda t: t[0])
-        sorted_vols, sorted_Es, sorted_Ns, sorted_mass, sorted_count_Fe, sorted_count_Cr, sorted_count_Sr = map(list,
-                                                                                                                zip(*triples))
+        # triples = sorted(zip(vols, Es, Ns, mass, count_Fe, count_Cr, count_Sr), key=lambda t: t[0])
+        # sorted_vols, sorted_Es, sorted_Ns, sorted_mass, sorted_count_Fe, sorted_count_Cr, sorted_count_Sr = map(list,zip(*triples))
+
+        triples = sorted(zip(vols, Es, Ns, mass, count_Fe, count_Cr), key=lambda t: t[0])
+        sorted_vols, sorted_Es, sorted_Ns, sorted_mass, sorted_count_Fe, sorted_count_Cr = map(list,zip(*triples))
+
 
         sorted_data[struct] = {
             "NIONS": sorted_Ns,
@@ -190,7 +193,7 @@ def sort_EvV_by_volume(EvV_data):
             "total_mass_g": sorted_mass,
             "count_Fe": sorted_count_Fe,
             "count_Cr": sorted_count_Cr,
-            "count_Sr": sorted_count_Sr,
+            # "count_Sr": sorted_count_Sr,
 
         }
 
