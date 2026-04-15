@@ -161,8 +161,8 @@ def sort_EvV_by_volume(EvV_data):
         Es = vals.get("TOTEN", [])
         Ns = vals.get("NIONS", [])
         mass = vals.get("total_mass_g", [])
-        count_Al = vals.get("count_Al", [])
-        count_Ca = vals.get("count_Ca", [])
+        count_Fe = vals.get("count_Fe", [])
+        count_Cr = vals.get("count_Cr", [])
         count_Sr = vals.get("count_Sr", [])
 
         # If nothing there, just copy as-is
@@ -172,15 +172,15 @@ def sort_EvV_by_volume(EvV_data):
                 "TOTEN": list(Es),
                 "final_volume_A3": list(vols),
                 "total_mass_g": list(mass),
-                "count_Al": list(count_Al),
-                "count_Ca": list(count_Ca),
+                "count_Fe": list(count_Fe),
+                "count_Cr": list(count_Cr),
                 "count_Sr": list(count_Sr),
             }
             continue
 
         # zip -> sort by volume -> unzip
-        triples = sorted(zip(vols, Es, Ns, mass, count_Al, count_Ca, count_Sr), key=lambda t: t[0])
-        sorted_vols, sorted_Es, sorted_Ns, sorted_mass, sorted_count_Al, sorted_count_Ca, sorted_count_Sr = map(list,
+        triples = sorted(zip(vols, Es, Ns, mass, count_Fe, count_Cr, count_Sr), key=lambda t: t[0])
+        sorted_vols, sorted_Es, sorted_Ns, sorted_mass, sorted_count_Fe, sorted_count_Cr, sorted_count_Sr = map(list,
                                                                                                                 zip(*triples))
 
         sorted_data[struct] = {
@@ -188,8 +188,8 @@ def sort_EvV_by_volume(EvV_data):
             "TOTEN": sorted_Es,
             "final_volume_A3": sorted_vols,
             "total_mass_g": sorted_mass,
-            "count_Al": sorted_count_Al,
-            "count_Ca": sorted_count_Ca,
+            "count_Fe": sorted_count_Fe,
+            "count_Cr": sorted_count_Cr,
             "count_Sr": sorted_count_Sr,
 
         }
@@ -217,14 +217,15 @@ def extract_EvV(log_path, elastic=False):
     toten_re = re.compile(r'\bTOTEN_eV:\s*' + float_pat)
     vol_re = re.compile(r'\bfinal_volume_A3:\s*' + float_pat)
     mass_re = re.compile(r'\btotal_mass_g:\s*' + float_pat)
-    count_Al_re = re.compile(r'\bcount_Al:\s*' + float_pat)
-    count_Ca_re = re.compile(r'\bcount_Ca:\s*' + float_pat)
-    count_Sr_re = re.compile(r'\bcount_Sr:\s*' + float_pat)
+    count_Fe_re = re.compile(r'\bcount_Fe:\s*' + float_pat)
+    count_Cr_re = re.compile(r'\bcount_Sr:\s*' + float_pat)
+    # count_Sr_re = re.compile(r'\bcount_Sr:\s*' + float_pat)
 
     # data["s_0/sx_0"] = {"NIONS": [...], "TOTEN": [...], "final_volume_A3": [...]}
     data: Dict[str, Dict[str, List[Union[int, float]]]] = defaultdict(
-        lambda: {"NIONS": [], "TOTEN": [], "final_volume_A3": [], "total_mass_g": [], "count_Al": [], "count_Ca": [],
-                 "count_Sr": []}
+        lambda: {"NIONS": [], "TOTEN": [], "final_volume_A3": [], "total_mass_g": [], "count_Fe": [], "count_Cr": [],
+                 # "count_Sr": [],
+                 }
     )
 
     current_struct = None  # type: Union[str, None]
@@ -232,9 +233,9 @@ def extract_EvV(log_path, elastic=False):
     current_toten = None  # type: Union[float, None]
     current_vol = None  # type: Union[float, None]
     current_mass = None  # type: Union[float, None]
-    current_count_Al = None  # type: Union[float, None]
-    current_count_Ca = None  # type: Union[float, None]
-    current_count_Sr = None  # type: Union[float, None]
+    current_count_Fe = None  # type: Union[float, None]
+    current_count_Cr = None  # type: Union[float, None]
+    # current_count_Sr = None  # type: Union[float, None]
 
     def flush_current():
         """If we have a complete set of metrics, store them into data."""
@@ -245,18 +246,18 @@ def extract_EvV(log_path, elastic=False):
                 and current_toten is not None
                 and current_vol is not None
                 and current_mass is not None
-                and current_count_Al is not None
-                and current_count_Ca is not None
-                and current_count_Sr is not None
+                and current_count_Fe is not None
+                and current_count_Cr is not None
+                # and current_count_Sr is not None
         ):
             entry = data[current_struct]
             entry["NIONS"].append(current_nions)
             entry["TOTEN"].append(current_toten)
             entry["final_volume_A3"].append(current_vol)
             entry["total_mass_g"].append(current_mass)
-            entry["count_Al"].append(current_count_Al)
-            entry["count_Ca"].append(current_count_Ca)
-            entry["count_Sr"].append(current_count_Sr)
+            entry["count_Fe"].append(current_count_Fe)
+            entry["count_Cr"].append(current_count_Cr)
+            # entry["count_Sr"].append(current_count_Sr)
 
     with open(log_path, "r", encoding="utf-8", errors="replace") as f:
         for line in f:
@@ -282,9 +283,9 @@ def extract_EvV(log_path, elastic=False):
                 current_toten = None
                 current_vol = None
                 current_mass = None
-                current_count_Al = None
-                current_count_Ca = None
-                current_count_Sr = None
+                current_count_Fe = None
+                current_count_Cr = None
+                # current_count_Sr = None
                 continue
 
             # If we don't have a valid s_*/sx_* for this block, skip lines
@@ -309,16 +310,16 @@ def extract_EvV(log_path, elastic=False):
             if m_mass:
                 current_mass = float(m_mass.group(1))
 
-            m_count_Al = count_Al_re.search(line)
-            if m_count_Al:
-                current_count_Al = float(m_count_Al.group(1))
+            m_count_Fe = count_Fe_re.search(line)
+            if m_count_Fe:
+                current_count_Fe = float(m_count_Fe.group(1))
 
-            m_count_Ca = count_Ca_re.search(line)
-            if m_count_Ca:
-                current_count_Ca = float(m_count_Ca.group(1))
-            m_count_Sr = count_Sr_re.search(line)
-            if m_count_Sr:
-                current_count_Sr = float(m_count_Sr.group(1))
+            m_count_Cr = count_Cr_re.search(line)
+            if m_count_Cr:
+                current_count_Cr = float(m_count_Cr.group(1))
+            # m_count_Sr = count_Sr_re.search(line)
+            # if m_count_Sr:
+            #     current_count_Sr = float(m_count_Sr.group(1))
 
     # Flush last block
     flush_current()
@@ -336,8 +337,8 @@ def extract_EvV_by_structure(EvV_data, structure_path):
     energies = s0sx0.get("TOTEN", [])
     mass = s0sx0.get("total_mass_g", [])
     natoms = s0sx0.get("NIONS", [])
-    # count_Al = s0sx0.get("count_Al", [])
-    # count_Ca = s0sx0.get("count_Ca", [])
+    # count_Fe = s0sx0.get("count_Fe", [])
+    # count_Cr = s0sx0.get("count_Cr", [])
     # count_Sr = s0sx0.get("count_Sr", [])
 
     volumes = np.array([v / n for v, n in zip(volumes, natoms)]) * (1e-30 * 6.02e23)
