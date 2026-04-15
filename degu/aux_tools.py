@@ -218,7 +218,7 @@ def extract_EvV(log_path, elastic=False):
     vol_re = re.compile(r'\bfinal_volume_A3:\s*' + float_pat)
     mass_re = re.compile(r'\btotal_mass_g:\s*' + float_pat)
     count_Fe_re = re.compile(r'\bcount_Fe:\s*' + float_pat)
-    count_Cr_re = re.compile(r'\bcount_Sr:\s*' + float_pat)
+    count_Cr_re = re.compile(r'\bcount_Cr:\s*' + float_pat)
     # count_Sr_re = re.compile(r'\bcount_Sr:\s*' + float_pat)
 
     # data["s_0/sx_0"] = {"NIONS": [...], "TOTEN": [...], "final_volume_A3": [...]}
