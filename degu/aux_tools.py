@@ -147,58 +147,124 @@ def plot_convtest_bkp(data4plot, encuts, kspacings, fig, ax):
 
     return fig, ax
 
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+
 def plot_convtest(data4plot, encuts, kspacings, fig, ax):
     data4plot_cpu_ks, data4plot_etot_ks, data4plot_cpu_ecut, data4plot_etot_ecut = data4plot
 
-    # Light red -> red for KSPACING series
+    # Color map for KSPACING: light red -> red
     ks_colors = plt.cm.Reds(np.linspace(0.35, 0.9, len(kspacings)))
+    ks_color_map = {ks: ks_colors[i] for i, ks in enumerate(kspacings)}
 
-    # Small -> large circles for ENCUT series
-    ecut_marker_sizes = np.linspace(4, 10, len(encuts))
+    # Marker sizes for ENCUT: small -> large
+    ecut_sizes = np.linspace(40, 180, len(encuts))   # scatter uses area, not markersize
+    ecut_size_map = {ecut: ecut_sizes[i] for i, ecut in enumerate(encuts)}
 
-    # Top row: vary color by KSPACING
-    for ix, ks in enumerate(kspacings):
-        ax[0, 0].plot(
-            encuts, data4plot_cpu_ks[ks],
-            marker='o',
-            markersize=6,
-            label=f'KSPACING={ks}',
-            color=ks_colors[ix]
-        )
-        ax[0, 1].plot(
-            encuts, data4plot_etot_ks[ks],
-            marker='o',
-            markersize=6,
-            label=f'KSPACING={ks}',
-            color=ks_colors[ix]
-        )
+    # -------------------------
+    # Top row: x = ENCUT
+    # each point has:
+    #   color from fixed ks
+    #   size from changing ecut
+    # -------------------------
+    for ks in kspacings:
+        y_cpu = data4plot_cpu_ks[ks]
+        y_etot = data4plot_etot_ks[ks]
 
-    # Bottom row: vary marker size by ENCUT
-    for ix, ecut in enumerate(encuts):
-        ax[1, 0].plot(
-            kspacings, data4plot_cpu_ecut[ecut],
-            marker='o',
-            markersize=ecut_marker_sizes[ix],
-            label=f'ENCUT={ecut}',
-            color='tab:blue'
-        )
-        ax[1, 1].plot(
-            kspacings, data4plot_etot_ecut[ecut],
-            marker='o',
-            markersize=ecut_marker_sizes[ix],
-            label=f'ENCUT={ecut}',
-            color='tab:blue'
-        )
+        # light guide lines
+        ax[0, 0].plot(encuts, y_cpu, color='0.7', lw=1, zorder=1)
+        ax[0, 1].plot(encuts, y_etot, color='0.7', lw=1, zorder=1)
 
-    for i in range(2):
-        ax[0, i].set_xlabel('ENCUT')
-        ax[1, i].set_xlabel('KSPACING')
-        ax[i, 0].set_ylabel('CPU Time (s)')
-        ax[i, 1].set_ylabel('Total Energy (eV)')
+        # colored + sized points
+        for ecut, y in zip(encuts, y_cpu):
+            ax[0, 0].scatter(
+                ecut, y,
+                color=ks_color_map[ks],
+                s=ecut_size_map[ecut],
+                edgecolor='black',
+                linewidth=0.5,
+                zorder=2
+            )
+
+        for ecut, y in zip(encuts, y_etot):
+            ax[0, 1].scatter(
+                ecut, y,
+                color=ks_color_map[ks],
+                s=ecut_size_map[ecut],
+                edgecolor='black',
+                linewidth=0.5,
+                zorder=2
+            )
+
+    # -------------------------
+    # Bottom row: x = KSPACING
+    # each point has:
+    #   color from changing ks
+    #   size from fixed ecut
+    # -------------------------
+    for ecut in encuts:
+        y_cpu = data4plot_cpu_ecut[ecut]
+        y_etot = data4plot_etot_ecut[ecut]
+
+        # light guide lines
+        ax[1, 0].plot(kspacings, y_cpu, color='0.7', lw=1, zorder=1)
+        ax[1, 1].plot(kspacings, y_etot, color='0.7', lw=1, zorder=1)
+
+        # colored + sized points
+        for ks, y in zip(kspacings, y_cpu):
+            ax[1, 0].scatter(
+                ks, y,
+                color=ks_color_map[ks],
+                s=ecut_size_map[ecut],
+                edgecolor='black',
+                linewidth=0.5,
+                zorder=2
+            )
+
+        for ks, y in zip(kspacings, y_etot):
+            ax[1, 1].scatter(
+                ks, y,
+                color=ks_color_map[ks],
+                s=ecut_size_map[ecut],
+                edgecolor='black',
+                linewidth=0.5,
+                zorder=2
+            )
+
+    # Labels
+    ax[0, 0].set_xlabel('ENCUT')
+    ax[0, 1].set_xlabel('ENCUT')
+    ax[1, 0].set_xlabel('KSPACING')
+    ax[1, 1].set_xlabel('KSPACING')
+
+    ax[0, 0].set_ylabel('CPU Time (s)')
+    ax[1, 0].set_ylabel('CPU Time (s)')
+    ax[0, 1].set_ylabel('Total Energy (eV)')
+    ax[1, 1].set_ylabel('Total Energy (eV)')
+
+    # Legend for KSPACING colors
+    ks_handles = [
+        Line2D([0], [0], marker='o', color='w',
+               markerfacecolor=ks_color_map[ks], markeredgecolor='black',
+               markersize=8, label=f'KSPACING={ks}')
+        for ks in kspacings
+    ]
+
+    # Legend for ENCUT sizes
+    size_handles = [
+        plt.scatter([], [], s=ecut_size_map[ecut], color='gray',
+                    edgecolor='black', linewidth=0.5, label=f'ENCUT={ecut}')
+        for ecut in encuts
+    ]
 
     for i in range(2):
         for j in range(2):
-            ax[i, j].legend()
+            leg1 = ax[i, j].legend(handles=ks_handles, title='Color = KSPACING',
+                                   loc='best', fontsize=8)
+            ax[i, j].add_artist(leg1)
+            ax[i, j].legend(handles=size_handles, title='Size = ENCUT',
+                            loc='upper left', bbox_to_anchor=(1.02, 1), fontsize=8)
 
     plt.tight_layout()
     return fig, ax
