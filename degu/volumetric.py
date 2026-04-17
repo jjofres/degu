@@ -3,7 +3,7 @@ import os
 import re
 
 import numpy as np
-from matplotlib import pyplot as plt
+# from matplotlib import pyplot as plt
 from scipy.spatial import ConvexHull, QhullError
 
 from coypus.datacontainer import DataContainer as DC
@@ -211,10 +211,10 @@ def build_mix_tables(
 # ---------------------------
 # Convex hull / volume plots
 # ---------------------------
-def plot_hmix_convex_hulls(table_hmix, NATOMS):
+def plot_hmix_convex_hulls(ax_hull, ax_lst, table_hmix, NATOMS):
     xy_per_temp = extract_xy_per_temperature(table_hmix, NATOMS)
 
-    fig_hull, ax_hull = plt.subplots()
+
     ax_hull.set_title("Convex hulls")
     ax_hull.set_xlabel(r"$x_{Cr}$ (molar)")
     ax_hull.set_ylabel(r"$\Delta H_{mix}$ (J/mol-atom)")
@@ -222,7 +222,7 @@ def plot_hmix_convex_hulls(table_hmix, NATOMS):
     ax_hull.axhline(y=0, color="k", linestyle="--", linewidth=0.5)
 
     for Ti, data in xy_per_temp.items():
-        fig, ax = plt.subplots()
+        ax = ax_lst.pop(0)
 
         points = np.column_stack([data["x"], data["y"]])
         chull = compute_filtered_convex_hull(points)
@@ -245,12 +245,11 @@ def plot_hmix_convex_hulls(table_hmix, NATOMS):
     ax_hull.legend(fontsize=6)
 
 
-def plot_vmix_convex_hulls_and_vegard(table_vmix, table_tgs, NATOMS):
+def plot_vmix_convex_hulls_and_vegard(ax_hull, ax_lsr_v, table_vmix, table_tgs, NATOMS):
     xy_vmix = extract_xy_per_temperature(table_vmix, NATOMS)
     volume_table = keep_only_volume_columns(table_tgs)
     xy_volume = extract_xy_per_temperature(volume_table, NATOMS)
 
-    fig_hull, ax_hull = plt.subplots()
     ax_hull.set_title("Convex hulls")
     ax_hull.set_xlabel(r"$x_{Cr}$ (molar)")
     ax_hull.set_ylabel(r"$\Delta V_{mix}$ ($10e^{-5}m^3$/mol-atom)")
@@ -258,7 +257,7 @@ def plot_vmix_convex_hulls_and_vegard(table_vmix, table_tgs, NATOMS):
     ax_hull.axhline(y=0, color="k", linestyle="--", linewidth=0.5)
 
     for Ti, data in xy_vmix.items():
-        fig, axes = plt.subplots(1, 2, figsize=(15, 4))
+        axes = ax_lsr_v.pop(0)
         ay, ax = axes[0], axes[1]
 
         points = np.column_stack([data["x"], data["y"]])
@@ -336,8 +335,8 @@ def get_pair_totals(npairs, combtypes, n_fe, NATOMS):
 # ---------------------------
 # SRO / pair plots
 # ---------------------------
-def plot_neighbor_sro(variant_strings, relax_dir, cutoff, number_of_NN):
-    figSRO, axSRO = plt.subplots(2, 2, figsize=(10, 10))
+def plot_neighbor_sro(axSRO, variant_strings, relax_dir, cutoff, number_of_NN):
+
 
     for variant_str in variant_strings:
         formula, cell, basis = load_variant_cell(relax_dir, variant_str)
@@ -389,8 +388,7 @@ def plot_neighbor_sro(variant_strings, relax_dir, cutoff, number_of_NN):
         ax.axhline(y=0, color="k", linestyle="--", linewidth=0.5)
 
 
-def plot_pair_probability_sro(variant_strings, relax_dir, cutoff, number_of_NN, NATOMS):
-    figSRO, axSRO = plt.subplots(2, 2, figsize=(10, 10))
+def plot_pair_probability_sro(axSRO, variant_strings, relax_dir, cutoff, number_of_NN, NATOMS):
 
     for variant_str in variant_strings:
         formula, cell, basis = load_variant_cell(relax_dir, variant_str)
@@ -463,9 +461,8 @@ def plot_pair_probability_sro(variant_strings, relax_dir, cutoff, number_of_NN, 
         ax.set_xlim(0, 1)
 
 
-def plot_pair_fraction_and_average_distance(variant_strings, relax_dir, cutoff, number_of_NN, NATOMS):
-    figSRO, axSRO = plt.subplots(2, 2, figsize=(10, 10))
-    fig_av_iterdistance, ax_av_iterdistance = plt.subplots()
+def plot_pair_fraction_and_average_distance(axSRO, variant_strings, relax_dir, cutoff, number_of_NN, NATOMS):
+
 
     avd_fe = 0
     avd_cr = 0
