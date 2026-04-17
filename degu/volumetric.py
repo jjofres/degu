@@ -461,7 +461,7 @@ def plot_pair_probability_sro(axSRO, variant_strings, relax_dir, cutoff, number_
         ax.set_xlim(0, 1)
 
 
-def plot_pair_fraction_and_average_distance(axSRO, variant_strings, relax_dir, cutoff, number_of_NN, NATOMS):
+def plot_pair_fraction_and_average_distance(axSRO, ax_av_iterdistance, variant_strings, relax_dir, cutoff, number_of_NN, NATOMS):
 
 
     avd_fe = 0
