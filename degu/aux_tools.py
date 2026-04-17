@@ -120,7 +120,7 @@ def get_data4plot(filename, encuts, kspacings, s, sx, str_spec = 'Ca-Sr'):
 from matplotlib import pyplot as plt
 
 
-def plot_convtest(data4plot, encuts, kspacings, fig, ax):
+def plot_convtest_bkp(data4plot, encuts, kspacings, fig, ax):
     data4plot_cpu_ks, data4plot_etot_ks, data4plot_cpu_ecut, data4plot_etot_ecut = data4plot
     colors = ['r', 'b', 'k', 'c', 'm', 'y', 'k']
     for ix, ks in enumerate(kspacings):
@@ -147,6 +147,61 @@ def plot_convtest(data4plot, encuts, kspacings, fig, ax):
 
     return fig, ax
 
+def plot_convtest(data4plot, encuts, kspacings, fig, ax):
+    data4plot_cpu_ks, data4plot_etot_ks, data4plot_cpu_ecut, data4plot_etot_ecut = data4plot
+
+    # Light red -> red for KSPACING series
+    ks_colors = plt.cm.Reds(np.linspace(0.35, 0.9, len(kspacings)))
+
+    # Small -> large circles for ENCUT series
+    ecut_marker_sizes = np.linspace(4, 10, len(encuts))
+
+    # Top row: vary color by KSPACING
+    for ix, ks in enumerate(kspacings):
+        ax[0, 0].plot(
+            encuts, data4plot_cpu_ks[ks],
+            marker='o',
+            markersize=6,
+            label=f'KSPACING={ks}',
+            color=ks_colors[ix]
+        )
+        ax[0, 1].plot(
+            encuts, data4plot_etot_ks[ks],
+            marker='o',
+            markersize=6,
+            label=f'KSPACING={ks}',
+            color=ks_colors[ix]
+        )
+
+    # Bottom row: vary marker size by ENCUT
+    for ix, ecut in enumerate(encuts):
+        ax[1, 0].plot(
+            kspacings, data4plot_cpu_ecut[ecut],
+            marker='o',
+            markersize=ecut_marker_sizes[ix],
+            label=f'ENCUT={ecut}',
+            color='tab:blue'
+        )
+        ax[1, 1].plot(
+            kspacings, data4plot_etot_ecut[ecut],
+            marker='o',
+            markersize=ecut_marker_sizes[ix],
+            label=f'ENCUT={ecut}',
+            color='tab:blue'
+        )
+
+    for i in range(2):
+        ax[0, i].set_xlabel('ENCUT')
+        ax[1, i].set_xlabel('KSPACING')
+        ax[i, 0].set_ylabel('CPU Time (s)')
+        ax[i, 1].set_ylabel('Total Energy (eV)')
+
+    for i in range(2):
+        for j in range(2):
+            ax[i, j].legend()
+
+    plt.tight_layout()
+    return fig, ax
 
 import re
 from collections import defaultdict
