@@ -442,12 +442,11 @@ def load_variant_cell(relax_dir, variant_str):
 
 def parse_type_concentrations(types_str):
     types_list = re.findall(r"[A-Z][a-z]*", types_str)
-    ntypes = len(types_list)
+    total = len(types_list)
 
     return {
-        "types_list": types_list,
-        "c_left": types_list.count("Fe") / ntypes,
-        "c_right": types_list.count("Cr") / ntypes,
+        "c_left": types_list.count(LEFT_ELEMENT) / total,
+        "c_right": types_list.count(RIGHT_ELEMENT) / total,
     }
 
 
