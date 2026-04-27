@@ -616,15 +616,23 @@ SRO_AXES = {
     "right_right": (1, 1),
 }
 
+PAIR_LABELS = {
+    "left_left": f"{LEFT_ELEMENT}{LEFT_ELEMENT}",
+    "right_left": f"{RIGHT_ELEMENT}{LEFT_ELEMENT}",
+    "left_right": f"{LEFT_ELEMENT}{RIGHT_ELEMENT}",
+    "right_right": f"{RIGHT_ELEMENT}{RIGHT_ELEMENT}",
+}
 
 def plot_sro_point_grid(ax_grid, stats, values, label_prefix):
-    for pair_name, value in values.items():
-        i, j = SRO_AXES[pair_name]
+    for pair_key, value in values.items():
+        i, j = SRO_AXES[pair_key]
+        pair_label = PAIR_LABELS[pair_key]
+
         ax_grid[i][j].plot(
-            [stats.c_cr],
+            [stats.c_right],
             [value],
             "ko",
-            label=f"{stats.variant_str}_{label_prefix}_{pair_name}",
+            label=f"{stats.variant_str}_{label_prefix}_{pair_label}",
             alpha=0.5,
             markerfacecolor="none",
         )
