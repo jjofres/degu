@@ -549,44 +549,60 @@ def compute_pair_fractions(stats):
 def compute_alpha_sro(stats):
     pair_fractions = compute_pair_fractions(stats)
 
-    alpha_fe_fe = (
-        1 - pair_fractions["FeFe"] / stats.c_fe**2
-        if stats.c_fe > 0
+    alpha_left_left = (
+        1 - pair_fractions["left_left"] / stats.c_left**2
+        if stats.c_left > 0
         else np.nan
     )
-    alpha_fe_cr = (
-        1 - pair_fractions["FeCr"] / (2 * stats.c_fe * stats.c_cr)
-        if stats.c_fe > 0 and stats.c_cr > 0
+    alpha_left_right = (
+        1 - pair_fractions["left_right"] / (2 * stats.c_left * stats.c_right)
+        if stats.c_left > 0 and stats.c_right > 0
         else np.nan
     )
-    alpha_cr_cr = (
-        1 - pair_fractions["CrCr"] / stats.c_cr**2
-        if stats.c_cr > 0
+    alpha_right_right = (
+        1 - pair_fractions["right_right"] / stats.c_right**2
+        if stats.c_right > 0
         else np.nan
     )
 
     return {
-        "FeFe": alpha_fe_fe,
-        "FeCr": alpha_fe_cr,
-        "CrFe": alpha_fe_cr,
-        "CrCr": alpha_cr_cr,
+        "left_left": alpha_left_left,
+        "right_left": alpha_left_right,
+        "left_right": alpha_left_right,
+        "right_right": alpha_right_right,
     }
 
 
 def compute_directional_sro(stats):
-    n_fe = stats.n_fe_neighbors
-    n_cr = stats.n_cr_neighbors
+    n_left = stats.n_left_neighbors
+    n_right = stats.n_right_neighbors
 
-    p_fe_fe = safe_divide(2 * stats.n_fe_fe, n_fe)
-    p_fe_cr = safe_divide(stats.n_fe_cr, n_fe)
-    p_cr_cr = safe_divide(2 * stats.n_cr_cr, n_cr)
-    p_cr_fe = safe_divide(stats.n_fe_cr, n_cr)
+    p_left_left = safe_divide(2 * stats.n_left_left, n_left)
+    p_left_right = safe_divide(stats.n_left_right, n_left)
+    p_right_right = safe_divide(2 * stats.n_right_right, n_right)
+    p_right_left = safe_divide(stats.n_left_right, n_right)
 
     return {
-        "FeFe": 1 - p_fe_fe / stats.c_fe if n_fe > 0 and stats.c_fe > 0 else np.nan,
-        "FeCr": 1 - p_fe_cr / stats.c_cr if n_fe > 0 and stats.c_cr > 0 else np.nan,
-        "CrFe": 1 - p_cr_fe / stats.c_fe if n_cr > 0 and stats.c_fe > 0 else np.nan,
-        "CrCr": 1 - p_cr_cr / stats.c_cr if n_cr > 0 and stats.c_cr > 0 else np.nan,
+        "left_left": (
+            1 - p_left_left / stats.c_left
+            if n_left > 0 and stats.c_left > 0
+            else np.nan
+        ),
+        "right_left": (
+            1 - p_right_left / stats.c_left
+            if n_right > 0 and stats.c_left > 0
+            else np.nan
+        ),
+        "left_right": (
+            1 - p_left_right / stats.c_right
+            if n_left > 0 and stats.c_right > 0
+            else np.nan
+        ),
+        "right_right": (
+            1 - p_right_right / stats.c_right
+            if n_right > 0 and stats.c_right > 0
+            else np.nan
+        ),
     }
 
 
@@ -594,10 +610,10 @@ def compute_directional_sro(stats):
 # SRO / pair plotting helpers
 # ---------------------------
 SRO_AXES = {
-    "FeFe": (0, 0),
-    "CrFe": (1, 0),
-    "FeCr": (0, 1),
-    "CrCr": (1, 1),
+    "left_left": (0, 0),
+    "right_left": (1, 0),
+    "left_right": (0, 1),
+    "right_right": (1, 1),
 }
 
 
