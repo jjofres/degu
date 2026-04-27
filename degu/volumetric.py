@@ -303,14 +303,7 @@ def plot_HV_mix(ax, table_Hmix, totnats, typehv):
         y = scale_mix_values(data["y"], typehv)
         color = cmap(norm(float(Ti)))
 
-        ax.plot(
-            x,
-            y,
-            "o",
-            label=f"T={float(Ti):.0f}",
-            color=color,
-            alpha=0.3,
-        )
+        ax.plot(x, y, "o", label=f"T={float(Ti):.0f}", color=color, alpha=0.3,)
 
         last_x = x
         last_y = y
@@ -324,13 +317,7 @@ def scatter_labeled_points(ax, x, y, labels, color):
     markers = [f"${label.split('_')[1]}$" for label in labels]
 
     for xi, yi, marker in zip(x, y, markers):
-        ax.scatter(
-            xi,
-            yi,
-            marker=marker,
-            edgecolors="none",
-            facecolors=color,
-        )
+        ax.scatter(xi, yi, marker=marker, edgecolors="none", facecolors=color, )
 
 
 def plot_vegard_line(ax, xs, ys):
@@ -669,47 +656,31 @@ def format_a_sro_axes(ax_grid):
 # ---------------------------
 # Public SRO / pair plots
 # ---------------------------
-def plot_avd_sro(
-    ax_av_iterdistance,
-    variant_strings,
-    RELAX_DIR,
-    cutoff,
-    n_pairs_ideal,
-    lims_y=None,
-):
-    avd_fe = 0
-    avd_cr = 0
+def plot_avd_sro(ax_av_iterdistance, variant_strings, cutoff, n_pairs_ideal, crystal_data_dict,):
+    avd_left = 0
+    avd_right = 0
     avd_list_x = []
     avd_list_y = []
     last_variant_str = ""
 
-    for stats in iter_variant_pair_stats(variant_strings, RELAX_DIR, cutoff, n_pairs_ideal):
+    for stats in iter_variant_pair_stats( variant_strings, cutoff, n_pairs_ideal, crystal_data_dict, ):
         average_distance = compute_average_pair_distance(stats)
 
-        avd_list_x.append(stats.c_cr)
+        avd_list_x.append(stats.c_right)
         avd_list_y.append(average_distance)
         last_variant_str = stats.variant_str
 
-        if stats.c_fe == 0:
-            avd_cr = average_distance
-        if stats.c_fe == 1:
-            avd_fe = average_distance
+        if stats.c_left == 0:
+            avd_right = average_distance
+        if stats.c_left == 1:
+            avd_left = average_distance
 
     x_ideal = np.linspace(0, 1, 50)
-    avd_ideal = [(1 - x) * avd_fe + x * avd_cr for x in x_ideal]
+    avd_ideal = [(1 - x) * avd_left + x * avd_right for x in x_ideal]
 
-    ax_av_iterdistance.plot(
-        avd_list_x,
-        avd_list_y,
-        "ko",
-        label=f"{last_variant_str}_average_distance",
-        alpha=0.5,
-        markerfacecolor="none",
-    )
+    ax_av_iterdistance.plot(avd_list_x, avd_list_y, "ko", label=f"{last_variant_str}_average_distance", alpha=0.5, markerfacecolor="none", )
+
     ax_av_iterdistance.plot(x_ideal, avd_ideal, "k-", alpha=0.5, label="ideal")
-
-    if lims_y is not None:
-        ax_av_iterdistance.set_ylim(*lims_y)
 
 
 def plot_x_sro(axSRO3, variant_strings, RELAX_DIR, cutoff, n_pairs_ideal):
@@ -724,21 +695,9 @@ def plot_x_sro(axSRO3, variant_strings, RELAX_DIR, cutoff, n_pairs_ideal):
     add_random_pair_fraction_lines(axSRO3)
 
 
-def plot_alpha_sro(
-    axSRO2,
-    variant_strings,
-    RELAX_DIR,
-    cutoff,
-    n_pairs_ideal,
-    lims_y=None,
-):
+def plot_alpha_sro(axSRO2, variant_strings, RELAX_DIR, cutoff, n_pairs_ideal, lims_y=None, ):
     for stats in iter_variant_pair_stats(variant_strings, RELAX_DIR, cutoff, n_pairs_ideal):
-        plot_sro_point_grid(
-            axSRO2,
-            stats,
-            compute_alpha_sro(stats),
-            label_prefix="alpha",
-        )
+        plot_sro_point_grid(axSRO2, stats, compute_alpha_sro(stats), label_prefix="alpha", )
 
     add_alpha_reference_lines(axSRO2)
     set_grid_ylim(axSRO2, lims_y)
@@ -746,11 +705,6 @@ def plot_alpha_sro(
 
 def plot_a_sro(axSRO, variant_strings, RELAX_DIR, cutoff, n_pairs_ideal):
     for stats in iter_variant_pair_stats(variant_strings, RELAX_DIR, cutoff, n_pairs_ideal):
-        plot_sro_point_grid(
-            axSRO,
-            stats,
-            compute_directional_sro(stats),
-            label_prefix="a",
-        )
+        plot_sro_point_grid(axSRO, stats, compute_directional_sro(stats), label_prefix="a", )
 
     format_a_sro_axes(axSRO)
