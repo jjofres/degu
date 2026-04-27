@@ -701,14 +701,9 @@ def plot_avd_sro(ax_av_iterdistance, variant_strings, cutoff, n_pairs_ideal, cry
     ax_av_iterdistance.plot(x_ideal, avd_ideal, "k-", alpha=0.5, label="ideal")
 
 
-def plot_x_sro(axSRO3, variant_strings, RELAX_DIR, cutoff, n_pairs_ideal):
-    for stats in iter_variant_pair_stats(variant_strings, RELAX_DIR, cutoff, n_pairs_ideal):
-        plot_sro_point_grid(
-            axSRO3,
-            stats,
-            compute_pair_fractions(stats),
-            label_prefix="x",
-        )
+def plot_x_sro(axSRO3, variant_strings, cutoff, n_pairs_ideal, crystal_data_dict):
+    for stats in iter_variant_pair_stats(variant_strings, cutoff, n_pairs_ideal, crystal_data_dict,):
+        plot_sro_point_grid(axSRO3, stats, compute_pair_fractions(stats), label_prefix="x",)
 
     add_random_pair_fraction_lines(axSRO3)
 
