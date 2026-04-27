@@ -538,11 +538,12 @@ def compute_pair_fractions(stats):
     total = stats.total_pairs
 
     return {
-        "FeFe": safe_divide(stats.n_fe_fe, total),
-        "FeCr": safe_divide(stats.n_fe_cr, total),
-        "CrFe": safe_divide(stats.n_fe_cr, total),
-        "CrCr": safe_divide(stats.n_cr_cr, total),
+        "left_left": safe_divide(stats.n_left_left, total),
+        "right_left": safe_divide(stats.n_left_right, total),
+        "left_right": safe_divide(stats.n_left_right, total),
+        "right_right": safe_divide(stats.n_right_right, total),
     }
+
 
 
 def compute_alpha_sro(stats):
