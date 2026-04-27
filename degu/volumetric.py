@@ -446,8 +446,8 @@ def parse_type_concentrations(types_str):
 
     return {
         "types_list": types_list,
-        "c_fe": types_list.count("Fe") / ntypes,
-        "c_cr": types_list.count("Cr") / ntypes,
+        "c_left": types_list.count("Fe") / ntypes,
+        "c_right": types_list.count("Cr") / ntypes,
     }
 
 
