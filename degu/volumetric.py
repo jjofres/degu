@@ -675,17 +675,30 @@ def set_grid_ylim(ax_grid, lims_y):
 
 
 def format_a_sro_axes(ax_grid):
-    labels = {
-        "FeFe": (r"$a_{FeFe}$", r"$Fe-Fe$"),
-        "CrFe": (r"$a_{CrFe}$", r"$Cr-Fe$"),
-        "FeCr": (r"$a_{FeCr}$", r"$Fe-Cr$"),
-        "CrCr": (r"$a_{CrCr}$", r"$Cr-Cr$"),
+    axis_specs = {
+        "left_left": (
+            rf"$a_{{{LEFT_ELEMENT}{LEFT_ELEMENT}}}$",
+            rf"${LEFT_ELEMENT}-{LEFT_ELEMENT}$",
+        ),
+        "right_left": (
+            rf"$a_{{{RIGHT_ELEMENT}{LEFT_ELEMENT}}}$",
+            rf"${RIGHT_ELEMENT}-{LEFT_ELEMENT}$",
+        ),
+        "left_right": (
+            rf"$a_{{{LEFT_ELEMENT}{RIGHT_ELEMENT}}}$",
+            rf"${LEFT_ELEMENT}-{RIGHT_ELEMENT}$",
+        ),
+        "right_right": (
+            rf"$a_{{{RIGHT_ELEMENT}{RIGHT_ELEMENT}}}$",
+            rf"${RIGHT_ELEMENT}-{RIGHT_ELEMENT}$",
+        ),
     }
 
-    for pair_name, (ylabel, title) in labels.items():
-        i, j = SRO_AXES[pair_name]
+    for pair_key, (ylabel, title) in axis_specs.items():
+        i, j = SRO_AXES[pair_key]
         ax = ax_grid[i][j]
-        ax.set_xlabel(r"$x_{Cr}$")
+
+        ax.set_xlabel(r"$x_{Zr}$")
         ax.set_ylabel(ylabel)
         ax.set_title(title)
         ax.axhline(y=0, color="k", linestyle="--", linewidth=0.5)
@@ -733,9 +746,9 @@ def plot_x_sro(axSRO3, variant_strings, cutoff, n_pairs_ideal, crystal_data_dict
     add_random_pair_fraction_lines(axSRO3)
 
 
-def plot_alpha_sro(axSRO2, variant_strings, RELAX_DIR, cutoff, n_pairs_ideal, lims_y=None, ):
-    for stats in iter_variant_pair_stats(variant_strings, RELAX_DIR, cutoff, n_pairs_ideal):
-        plot_sro_point_grid(axSRO2, stats, compute_alpha_sro(stats), label_prefix="alpha", )
+def plot_alpha_sro(axSRO2, variant_strings, cutoff, n_pairs_ideal, crystal_data_dict,lims_y=None,):
+    for stats in iter_variant_pair_stats(variant_strings, cutoff, n_pairs_ideal, crystal_data_dict,):
+        plot_sro_point_grid( axSRO2, stats, compute_alpha_sro(stats), label_prefix="alpha",)
 
     add_alpha_reference_lines(axSRO2)
     set_grid_ylim(axSRO2, lims_y)
