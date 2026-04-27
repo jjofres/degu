@@ -1,14 +1,17 @@
-from pathlib import Path
 import os
 import re
+from dataclasses import dataclass
 
 import numpy as np
-# from matplotlib import pyplot as plt
-from scipy.spatial import ConvexHull, QhullError
+from matplotlib import pyplot as plt
+import matplotlib.colors as mcolors
 
 from coypus.datacontainer import DataContainer as DC
 from debyetools.aux_functions import load_cell
 from debyetools.pairanalysis import pair_analysis as pa
+
+
+cmap = plt.colormaps["rainbow"]
 
 
 # ---------------------------
@@ -18,6 +21,7 @@ def pad_array(arr, target_length, fill_value=None):
     arr = np.asarray(arr, dtype=object)
     if len(arr) >= target_length:
         return arr
+
     padding = np.full(target_length - len(arr), fill_value, dtype=object)
     return np.concatenate((arr, padding))
 
@@ -29,29 +33,13 @@ def float_or_none(value):
         return None
 
 
-def compute_filtered_convex_hull(points):
-    points = np.asarray(points)
-
-    if len(points) == 0:
-        return points
-
-    if len(points) < 3:
-        return points[points[:, 1] <= 0]
-
-    try:
-        hull = ConvexHull(points)
-        hull_points = points[hull.vertices]
-    except QhullError:
-        hull_points = points
-
-    return hull_points[hull_points[:, 1] <= 0]
-
-
 def new_temperature_table(T):
     ntemps = len(T)
     table = DC()
+
     for _ in range(ntemps - 1):
         table.new_row()
+
     table.add_attribute("T")
     setattr(table, "T", pad_array(T, ntemps + 1))
     return table
@@ -60,6 +48,15 @@ def new_temperature_table(T):
 def add_padded_attribute(table, name, values, ntemps):
     table.add_attribute(name)
     setattr(table, name, pad_array(values, ntemps + 1))
+
+
+def get_valid_temperatures(table):
+    return [float(Ti) for Ti in table.T if Ti is not None]
+
+
+def get_temperature_norm(table):
+    temperatures = get_valid_temperatures(table)
+    return mcolors.Normalize(vmin=min(temperatures), vmax=max(temperatures))
 
 
 def get_variant_map(base_dir):
@@ -83,11 +80,22 @@ def extract_temperature_axis(tprops_all_dict):
     return np.array(tprops_all_dict[first_s][first_sx]["T"])
 
 
-def extract_xy_per_temperature(table, NATOMS):
-    valid_temperatures = [Ti for Ti in table.T if Ti is not None]
+def split_variant_column_key(key):
+    parts = key.split("_")
+    n_fe = int(parts[2])
+    label = "_".join(parts[-2:])
+    return n_fe, label
+
+
+def extract_xy_per_temperature(table, natoms):
+    return extract_xy_per_temperature_for_prefix(table, natoms, prefix=None)
+
+
+def extract_xy_per_temperature_for_prefix(table, natoms, prefix=None):
+    valid_temperatures = get_valid_temperatures(table)
 
     xy_per_temp = {
-        f"{float(Ti):.5f}": {"x": [], "y": [], "label": []}
+        f"{Ti:.5f}": {"x": [], "y": [], "label": []}
         for Ti in valid_temperatures
     }
 
@@ -98,32 +106,44 @@ def extract_xy_per_temperature(table, NATOMS):
         temp_key = f"{float(row.T[0]):.5f}"
 
         for key in row.keys()[2:]:
+            if prefix is not None and not key.startswith(prefix):
+                continue
+
             value = row[key][0]
             if value is None:
                 continue
 
-            xy_per_temp[temp_key]["x"].append((NATOMS - int(key.split("_")[2])) / NATOMS)
+            n_fe, label = split_variant_column_key(key)
+
+            xy_per_temp[temp_key]["x"].append((natoms - n_fe) / natoms)
             xy_per_temp[temp_key]["y"].append(float(value))
-            xy_per_temp[temp_key]["label"].append("_".join(key.split("_")[-2:]))
+            xy_per_temp[temp_key]["label"].append(label)
 
     return xy_per_temp
 
-def keep_only_volume_columns(table):
-    keys_to_remove = [
-        key for key in table.keys()
-        if "V_s" not in key and key not in {"ix", "T"}
-    ]
-    table.remove_keys(keys_to_remove)
-    return table
+
+def annotate_points(ax, x, y, labels, dx=15, dy=0, fontsize=6):
+    for label, xi, yi in zip(labels, x, y):
+        ax.annotate(
+            label,
+            xy=(xi, yi),
+            textcoords="offset points",
+            xytext=(dx, dy),
+            ha="center",
+            fontsize=fontsize,
+        )
 
 
-def parse_formula(formula):
-    types_list = re.findall(r"[A-Z][a-z]*", formula)
-    total = len(types_list)
-    c_fe = types_list.count("Fe") / total
-    c_cr = types_list.count("Cr") / total
-    n_fe = types_list.count("Fe")
-    return types_list, c_fe, c_cr, n_fe
+def plot_temperature_legend_entry(ax, color, temperature):
+    ax.plot(
+        [],
+        [],
+        color=color,
+        marker="o",
+        markerfacecolor="none",
+        linestyle="none",
+        label=f"T={float(temperature):.0f}",
+    )
 
 
 # ---------------------------
@@ -131,10 +151,17 @@ def parse_formula(formula):
 # ---------------------------
 def load_tprops_by_variant(tprops, variant_map):
     tprops_all_dict = {}
+
     for s, sx_list in variant_map.items():
         tprops_all_dict[s] = {}
+
         for sx in sx_list:
-            tprops_all_dict[s][sx] = tprops.filter_by_value("sname", f"{s}/{sx}").to_dict()
+            tprops_all_dict[s][sx] = (
+                tprops
+                .filter_by_value("sname", f"{s}/{sx}")
+                .to_dict()
+            )
+
     return tprops_all_dict
 
 
@@ -151,10 +178,12 @@ def build_tgs_table(tprops_all_dict, outpath):
             S_i = np.array(values["S"])
             H_i = G_i + T_i * S_i
 
-            add_padded_attribute(table_tgs, f"G_{s}_{sx}", G_i, ntemps)
-            add_padded_attribute(table_tgs, f"S_{s}_{sx}", S_i, ntemps)
-            add_padded_attribute(table_tgs, f"H_{s}_{sx}", H_i, ntemps)
-            add_padded_attribute(table_tgs, f"V_{s}_{sx}", V_i, ntemps)
+            variant_id = f"{s}_{sx}"
+
+            add_padded_attribute(table_tgs, f"G_{variant_id}", G_i, ntemps)
+            add_padded_attribute(table_tgs, f"S_{variant_id}", S_i, ntemps)
+            add_padded_attribute(table_tgs, f"H_{variant_id}", H_i, ntemps)
+            add_padded_attribute(table_tgs, f"V_{variant_id}", V_i, ntemps)
 
     table_tgs.save(str(outpath))
     return table_tgs, T
@@ -169,6 +198,7 @@ def get_table_column_as_float_array(table, key, drop_none=True):
 
     return np.array([np.nan if v is None else v for v in values], dtype=float)
 
+
 def build_mix_tables(
     tprops_all_dict,
     table_tgs,
@@ -178,10 +208,17 @@ def build_mix_tables(
     natoms,
     hmix_outpath,
     vmix_outpath,
+    hform_outpath,
+    Href_fe,
+    Href_cr,
 ):
     ntemps = len(T)
-    table_hmix = new_temperature_table(T)
-    table_vmix = new_temperature_table(T)
+
+    output_tables = {
+        "DHmix": new_temperature_table(T),
+        "DVmix": new_temperature_table(T),
+        "DHform": new_temperature_table(T),
+    }
 
     H_cr = get_table_column_as_float_array(table_tgs, f"H_{pure_cr_id}")
     H_fe = get_table_column_as_float_array(table_tgs, f"H_{pure_fe_id}")
@@ -198,339 +235,522 @@ def build_mix_tables(
             H_fecr = get_table_column_as_float_array(table_tgs, f"H_{variant_id}")
             V_fecr = get_table_column_as_float_array(table_tgs, f"V_{variant_id}")
 
-            dHmix = (H_fecr - n_cr / natoms * H_cr - n_fe / natoms * H_fe) / 2
-            dVmix = (V_fecr - n_cr / natoms * V_cr - n_fe / natoms * V_fe) / 2
+            values_by_name = {
+                "DHmix": H_fecr - n_cr / natoms * H_cr - n_fe / natoms * H_fe,
+                "DVmix": V_fecr - n_cr / natoms * V_cr - n_fe / natoms * V_fe,
+                "DHform": H_fecr - n_cr / natoms * Href_cr - n_fe / natoms * Href_fe,
+            }
 
-            add_padded_attribute(table_hmix, f"DHmix_{variant_id}", dHmix, ntemps)
-            add_padded_attribute(table_vmix, f"DVmix_{variant_id}", dVmix, ntemps)
+            for name, values in values_by_name.items():
+                add_padded_attribute(
+                    output_tables[name],
+                    f"{name}_{variant_id}",
+                    values,
+                    ntemps,
+                )
 
-    table_hmix.save(str(hmix_outpath))
-    table_vmix.save(str(vmix_outpath))
-    return table_hmix, table_vmix
+    output_tables["DHmix"].save(str(hmix_outpath))
+    output_tables["DVmix"].save(str(vmix_outpath))
+    output_tables["DHform"].save(str(hform_outpath))
+
+    return output_tables["DHmix"], output_tables["DVmix"], output_tables["DHform"]
+
 
 # ---------------------------
 # Convex hull / volume plots
 # ---------------------------
-def plot_hmix_convex_hulls(ax_hull, ax_lst, table_hmix, NATOMS):
-    xy_per_temp = extract_xy_per_temperature(table_hmix, NATOMS)
+def scale_mix_values(values, typehv):
+    values = np.array(values, dtype=float)
+
+    if typehv == "V":
+        return values / 1e-5
+
+    if typehv in {"H", "Hf"}:
+        return values / 1000
+
+    raise ValueError(f"Unknown typehv: {typehv!r}")
 
 
-    ax_hull.set_title("Convex hulls")
-    ax_hull.set_xlabel(r"$x_{Cr}$ (molar)")
-    ax_hull.set_ylabel(r"$\Delta H_{mix}$ (J/mol-atom)")
-    ax_hull.set_xlim(0, 1)
-    ax_hull.axhline(y=0, color="k", linestyle="--", linewidth=0.5)
+def format_hv_mix_axis(ax, typehv):
+    ax.set_xlim(0, 1)
+    ax.set_xlabel(r"$x_{Cr}$ (molar)")
+
+    if typehv == "H":
+        ax.set_ylabel(r"$\Delta H_{mix}$ (kJ/mol-atom)")
+        ax.axhline(0, color="black", lw=0.5, ls="--")
+    elif typehv == "V":
+        ax.set_ylabel(r"$\Delta V_{mix}$ ($10e^{-5}m^3$/mol-atom)")
+        ax.set_ylim(-0.1, 0.1)
+        ax.axhline(0, color="black", lw=0.5, ls="--")
+    elif typehv == "Hf":
+        ax.set_ylabel(r"$\Delta H_{f}$ (kJ/mol-atom)")
+    else:
+        raise ValueError(f"Unknown typehv: {typehv!r}")
+
+    ax.legend(fontsize=6)
+
+
+def plot_HV_mix(ax, table_Hmix, totnats, typehv):
+    xy_per_temp = extract_xy_per_temperature(table_Hmix, totnats)
+    norm = get_temperature_norm(table_Hmix)
+
+    last_x = []
+    last_y = []
+    last_labels = []
 
     for Ti, data in xy_per_temp.items():
-        ax = ax_lst.pop(0)
+        x = data["x"]
+        y = scale_mix_values(data["y"], typehv)
+        color = cmap(norm(float(Ti)))
 
-        points = np.column_stack([data["x"], data["y"]])
-        chull = compute_filtered_convex_hull(points)
-
-        ax.plot(data["x"], data["y"], "o", label=f"T={Ti}", markerfacecolor="none")
-
-        for label, x, y in zip(data["label"], data["x"], data["y"]):
-            ax.annotate(label, xy=(x, y), textcoords="offset points", xytext=(0, 5), ha="center", fontsize=6)
-
-        if len(chull) > 0:
-            chull = chull[np.argsort(chull[:, 0])]
-            ax_hull.plot(chull[:, 0], chull[:, 1], label=f"T = {float(Ti):.0f}")
-
-        ax.set_xlim(0, 1)
-        ax.set_title(f"T = {float(Ti):.2f} K")
-        ax.set_xlabel(r"$x_{Cr}$ (molar)")
-        ax.set_ylabel(r"$\Delta H_{mix}$ (J/mol-atom)")
-        ax.axhline(0, color="black", lw=0.5, ls="--")
-
-    ax_hull.legend(fontsize=6)
-
-
-def plot_vmix_convex_hulls_and_vegard(ax_hull, ax_lsr_v, table_vmix, table_tgs, NATOMS):
-    xy_vmix = extract_xy_per_temperature(table_vmix, NATOMS)
-    volume_table = keep_only_volume_columns(table_tgs)
-    xy_volume = extract_xy_per_temperature(volume_table, NATOMS)
-
-    ax_hull.set_title("Convex hulls")
-    ax_hull.set_xlabel(r"$x_{Cr}$ (molar)")
-    ax_hull.set_ylabel(r"$\Delta V_{mix}$ ($10e^{-5}m^3$/mol-atom)")
-    ax_hull.set_xlim(0, 1)
-    ax_hull.axhline(y=0, color="k", linestyle="--", linewidth=0.5)
-
-    for Ti, data in xy_vmix.items():
-        axes = ax_lsr_v.pop(0)
-        ay, ax = axes[0], axes[1]
-
-        points = np.column_stack([data["x"], data["y"]])
-        chull = compute_filtered_convex_hull(points)
-
-        ax.plot(data["x"], np.array(data["y"]) / 1e-5, "o", label=f"T={Ti}", markerfacecolor="none")
-        ay.plot(
-            xy_volume[Ti]["x"],
-            np.array(xy_volume[Ti]["y"]) / 1e-5,
+        ax.plot(
+            x,
+            y,
             "o",
-            label=f"T={Ti}",
-            markerfacecolor="none",
+            label=f"T={float(Ti):.0f}",
+            color=color,
+            alpha=0.3,
         )
 
-        vegard = lambda x: ((x) * xy_volume[Ti]["y"][0] + (1 - x) * xy_volume[Ti]["y"][-1]) / 1e-5
-        ay.plot(
-            data["x"],
-            [vegard(xi) for xi in data["x"]],
-            "k--",
-            linewidth=0.5,
+        last_x = x
+        last_y = y
+        last_labels = data["label"]
+
+    annotate_points(ax, last_x, last_y, last_labels)
+    format_hv_mix_axis(ax, typehv)
+
+
+def scatter_labeled_points(ax, x, y, labels, color):
+    markers = [f"${label.split('_')[1]}$" for label in labels]
+
+    for xi, yi, marker in zip(x, y, markers):
+        ax.scatter(
+            xi,
+            yi,
+            marker=marker,
+            edgecolors="none",
+            facecolors=color,
         )
 
-        if len(chull) > 0:
-            chull = chull[np.argsort(chull[:, 0])]
-            ax_hull.plot(chull[:, 0], chull[:, 1] / 1e-5, label=f"T = {float(Ti):.0f}")
 
-        ax.set_ylim(-0.08, 0.005)
-        ax.set_xlim(0, 1)
-        ay.set_xlim(0, 1)
+def plot_vegard_line(ax, xs, ys):
+    indices = np.argsort(xs)
+    xs = np.array(xs)[indices]
+    ys = np.array(ys)[indices]
 
-        ax.set_title(f"T = {float(Ti):.2f} K")
-        ax.set_xlabel(r"$x_{Cr}$ (molar)")
-        ay.set_xlabel(r"$x_{Cr}$ (molar)")
-        ax.set_ylabel(r"$\Delta V_{mix}$ ($10e^{-5}m^3$/mol-atom)")
-        ay.set_ylabel(r"$V$ ($10e^{-5}m^3$/mol-atom)")
-        ax.axhline(0, color="black", lw=0.5, ls="--")
+    min_v = ys[0]
+    max_v = ys[-1]
+    vegard_y = xs * max_v + (1 - xs) * min_v
 
-    ax_hull.legend(fontsize=6)
+    ax.plot(xs, vegard_y, "k--", linewidth=0.5)
+
+
+def format_vmix_vegard_axes(amix, ay, limitsVm, limitsV, title_temperature=None):
+    amix.set_ylim(*limitsVm)
+    ay.set_ylim(*limitsV)
+
+    amix.set_xlim(0, 1)
+    ay.set_xlim(0, 1)
+
+    if title_temperature is not None:
+        amix.set_title(f"T = {float(title_temperature):.2f} K")
+
+    amix.set_xlabel(r"$x_{Cr}$ (molar)")
+    ay.set_xlabel(r"$x_{Cr}$ (molar)")
+
+    amix.set_ylabel(r"$\Delta V_{mix}$ ($10e^{-5}m^3$/mol-atom)")
+    ay.set_ylabel(r"$V$ ($10e^{-5}m^3$/mol-atom)")
+
+    amix.axhline(0, color="black", lw=0.5, ls="--")
+
+    amix.legend(fontsize=6, ncols=2)
+    ay.legend(fontsize=6, ncols=1)
+
+
+def plot_vmix_convex_hulls_and_vegard(
+    axxx,
+    table_vmix,
+    table_tgs,
+    NATOMS,
+    limitsVm=(-0.02, 0.02),
+    limitsV=(0.6, 0.8),
+):
+    xy_vmix = extract_xy_per_temperature(table_vmix, NATOMS)
+    xy_volume = extract_xy_per_temperature_for_prefix(table_tgs, NATOMS, prefix="V_")
+
+    ay, amix = axxx[0], axxx[1]
+    norm = get_temperature_norm(table_vmix)
+
+    last_mix_x = []
+    last_mix_y = []
+    last_mix_labels = []
+    last_temperature = None
+
+    for i, (Ti, mix_data) in enumerate(xy_vmix.items()):
+        color = cmap(norm(float(Ti)))
+
+        xm = mix_data["x"]
+        ym = np.array(mix_data["y"]) / 1e-5
+
+        scatter_labeled_points(amix, xm, ym, mix_data["label"], color)
+        plot_temperature_legend_entry(amix, color, Ti)
+
+        last_mix_x = xm
+        last_mix_y = ym
+        last_mix_labels = mix_data["label"]
+        last_temperature = Ti
+
+        if i % 3 != 0:
+            continue
+
+        volume_data = xy_volume[Ti]
+        xv = np.array(volume_data["x"])
+        yv = np.array(volume_data["y"]) / 1e-5
+
+        sort_ix = np.argsort(xv)
+        xv = xv[sort_ix]
+        yv = yv[sort_ix]
+        labels = np.array(volume_data["label"])[sort_ix]
+
+        scatter_labeled_points(ay, xv, yv, labels, color)
+        plot_temperature_legend_entry(ay, color, Ti)
+        plot_vegard_line(ay, xv, yv)
+
+    annotate_points(amix, last_mix_x, last_mix_y, last_mix_labels)
+    format_vmix_vegard_axes(amix, ay, limitsVm, limitsV, title_temperature=last_temperature)
 
 
 # ---------------------------
 # Pair-analysis helpers
 # ---------------------------
+@dataclass
+class VariantPairStats:
+    variant_str: str
+    c_fe: float
+    c_cr: float
+    distances: np.ndarray
+    npairs: np.ndarray
+    n_fe_fe: float
+    n_fe_cr: float
+    n_cr_cr: float
+
+    @property
+    def total_pairs(self):
+        return self.n_fe_fe + self.n_fe_cr + self.n_cr_cr
+
+    @property
+    def n_fe_neighbors(self):
+        return 2 * self.n_fe_fe + self.n_fe_cr
+
+    @property
+    def n_cr_neighbors(self):
+        return 2 * self.n_cr_cr + self.n_fe_cr
+
+
 def load_variant_cell(relax_dir, variant_str):
     return load_cell(relax_dir / variant_str / "relaxation" / "CONTCAR")
 
 
-def get_pair_arrays(npairs, combtypes):
+def parse_type_concentrations(types_str):
+    types_list = re.findall(r"[A-Z][a-z]*", types_str)
+    ntypes = len(types_list)
+
     return {
-        "Fe-Fe": npairs[:, combtypes.index("Fe-Fe")] if "Fe-Fe" in combtypes else 0,
-        "Cr-Fe": npairs[:, combtypes.index("Cr-Fe")] if "Cr-Fe" in combtypes else 0,
-        "Cr-Cr": npairs[:, combtypes.index("Cr-Cr")] if "Cr-Cr" in combtypes else 0,
+        "types_list": types_list,
+        "c_fe": types_list.count("Fe") / ntypes,
+        "c_cr": types_list.count("Cr") / ntypes,
     }
 
 
-def get_pair_totals(npairs, combtypes, n_fe, NATOMS):
-    pair_arrays = get_pair_arrays(npairs, combtypes)
+def get_pair_column(npairs, combtypes, pair_name, fallback_pair_name=None):
+    if pair_name in combtypes:
+        return npairs[:, combtypes.index(pair_name)]
 
-    if n_fe == 0:
-        fe_fe_pairs = 0
-        fe_cr_pairs = 0
-        cr_cr_pairs = sum(pair_arrays["Cr-Cr"])
-    elif n_fe == NATOMS:
-        fe_fe_pairs = sum(pair_arrays["Fe-Fe"])
-        fe_cr_pairs = 0
-        cr_cr_pairs = 0
-    else:
-        fe_fe_pairs = sum(pair_arrays["Fe-Fe"])
-        fe_cr_pairs = sum(pair_arrays["Cr-Fe"])
-        cr_cr_pairs = sum(pair_arrays["Cr-Cr"])
+    if fallback_pair_name is not None and fallback_pair_name in combtypes:
+        return npairs[:, combtypes.index(fallback_pair_name)]
 
-    return fe_fe_pairs, fe_cr_pairs, cr_cr_pairs
+    return np.zeros(len(npairs))
 
 
-# ---------------------------
-# SRO / pair plots
-# ---------------------------
-def plot_neighbor_sro(axSRO, variant_strings, relax_dir, cutoff, number_of_NN):
+def find_npairs_ix(npairs, np_sum):
+    for i in range(1, len(npairs)):
+        current_sum = sum(np.sum(npairs[0:i], axis=1))
+        if abs(current_sum - np_sum) < 0.5:
+            return i
+
+    return len(npairs)
 
 
+def get_variant_pair_stats(variant_str, relax_dir, cutoff, n_pairs_ideal):
+    types_str, cell, basis = load_variant_cell(relax_dir, variant_str)
+    concentrations = parse_type_concentrations(types_str)
+
+    distances, npairs, combtypes = pa(types_str, cutoff, basis, cell)
+
+    number_of_nn = find_npairs_ix(npairs, n_pairs_ideal)
+    distances = distances[:number_of_nn]
+    npairs = npairs[:number_of_nn]
+
+    npairs_fe_fe = get_pair_column(npairs, combtypes, "Fe-Fe")
+    npairs_fe_cr = get_pair_column(npairs, combtypes, "Cr-Fe", "Fe-Cr")
+    npairs_cr_cr = get_pair_column(npairs, combtypes, "Cr-Cr")
+
+    return VariantPairStats(
+        variant_str=variant_str,
+        c_fe=concentrations["c_fe"],
+        c_cr=concentrations["c_cr"],
+        distances=distances,
+        npairs=npairs,
+        n_fe_fe=sum(npairs_fe_fe),
+        n_fe_cr=sum(npairs_fe_cr),
+        n_cr_cr=sum(npairs_cr_cr),
+    )
+
+
+def iter_variant_pair_stats(variant_strings, relax_dir, cutoff, n_pairs_ideal):
     for variant_str in variant_strings:
-        formula, cell, basis = load_variant_cell(relax_dir, variant_str)
-        _, c_fe, c_cr, _ = parse_formula(formula)
+        yield get_variant_pair_stats(
+            variant_str,
+            relax_dir,
+            cutoff,
+            n_pairs_ideal,
+        )
 
-        distances, npairs, combtypes = pa(formula, cutoff, basis, cell)
-        distances, npairs = distances[:number_of_NN], npairs[:number_of_NN]
 
-        pair_arrays = get_pair_arrays(npairs, combtypes)
-        N_fe_fe = sum(pair_arrays["Fe-Fe"])
-        N_fe_cr = sum(pair_arrays["Cr-Fe"])
-        N_cr_cr = sum(pair_arrays["Cr-Cr"])
+def safe_divide(numerator, denominator):
+    return numerator / denominator if denominator > 0 else np.nan
 
-        N_fe = N_fe_fe + N_fe_cr
-        N_cr = N_cr_cr + N_fe_cr
 
-        p_fe_fe = N_fe_fe / N_fe
-        p_fe_cr = N_fe_cr / N_fe
-        p_cr_cr = N_cr_cr / N_cr
-        p_cr_fe = N_fe_cr / N_cr
+# ---------------------------
+# SRO / pair calculations
+# ---------------------------
+def compute_average_pair_distance(stats):
+    pair_counts_by_distance = stats.npairs.sum(axis=1)
+    return np.dot(stats.distances, pair_counts_by_distance) / pair_counts_by_distance.sum()
 
-        a_fe_cr = 1 - p_fe_cr / c_cr
-        a_cr_fe = 1 - p_cr_fe / c_fe
-        a_fe_fe = 1 - p_fe_fe / c_fe
-        a_cr_cr = 1 - p_cr_cr / c_cr
 
-        axSRO[0][0].plot([c_cr], [a_fe_fe], "ko", alpha=0.5, markerfacecolor="none")
-        axSRO[1][0].plot([c_cr], [a_cr_fe], "ko", alpha=0.5, markerfacecolor="none")
-        axSRO[0][1].plot([c_cr], [a_fe_cr], "ko", alpha=0.5, markerfacecolor="none")
-        axSRO[1][1].plot([c_cr], [a_cr_cr], "ko", alpha=0.5, markerfacecolor="none")
+def compute_pair_fractions(stats):
+    total = stats.total_pairs
 
-    axSRO[0][0].set_xlabel(r"$x_{Cr}$")
-    axSRO[0][0].set_ylabel(r"$a_{FeFe}$")
-    axSRO[0][0].set_title(r"$Fe-Fe$")
+    return {
+        "FeFe": safe_divide(stats.n_fe_fe, total),
+        "FeCr": safe_divide(stats.n_fe_cr, total),
+        "CrFe": safe_divide(stats.n_fe_cr, total),
+        "CrCr": safe_divide(stats.n_cr_cr, total),
+    }
 
-    axSRO[1][0].set_xlabel(r"$x_{Cr}$")
-    axSRO[1][0].set_ylabel(r"$a_{CrFe}$")
-    axSRO[1][0].set_title(r"$Cr-Fe$")
 
-    axSRO[0][1].set_xlabel(r"$x_{Cr}$")
-    axSRO[0][1].set_ylabel(r"$a_{FeCr}$")
-    axSRO[0][1].set_title(r"$Fe-Cr$")
+def compute_alpha_sro(stats):
+    pair_fractions = compute_pair_fractions(stats)
 
-    axSRO[1][1].set_xlabel(r"$x_{Cr}$")
-    axSRO[1][1].set_ylabel(r"$a_{CrCr}$")
-    axSRO[1][1].set_title(r"$Cr-Cr$")
+    alpha_fe_fe = (
+        1 - pair_fractions["FeFe"] / stats.c_fe**2
+        if stats.c_fe > 0
+        else np.nan
+    )
+    alpha_fe_cr = (
+        1 - pair_fractions["FeCr"] / (2 * stats.c_fe * stats.c_cr)
+        if stats.c_fe > 0 and stats.c_cr > 0
+        else np.nan
+    )
+    alpha_cr_cr = (
+        1 - pair_fractions["CrCr"] / stats.c_cr**2
+        if stats.c_cr > 0
+        else np.nan
+    )
 
-    for ax in axSRO.flatten():
+    return {
+        "FeFe": alpha_fe_fe,
+        "FeCr": alpha_fe_cr,
+        "CrFe": alpha_fe_cr,
+        "CrCr": alpha_cr_cr,
+    }
+
+
+def compute_directional_sro(stats):
+    n_fe = stats.n_fe_neighbors
+    n_cr = stats.n_cr_neighbors
+
+    p_fe_fe = safe_divide(2 * stats.n_fe_fe, n_fe)
+    p_fe_cr = safe_divide(stats.n_fe_cr, n_fe)
+    p_cr_cr = safe_divide(2 * stats.n_cr_cr, n_cr)
+    p_cr_fe = safe_divide(stats.n_fe_cr, n_cr)
+
+    return {
+        "FeFe": 1 - p_fe_fe / stats.c_fe if n_fe > 0 and stats.c_fe > 0 else np.nan,
+        "FeCr": 1 - p_fe_cr / stats.c_cr if n_fe > 0 and stats.c_cr > 0 else np.nan,
+        "CrFe": 1 - p_cr_fe / stats.c_fe if n_cr > 0 and stats.c_fe > 0 else np.nan,
+        "CrCr": 1 - p_cr_cr / stats.c_cr if n_cr > 0 and stats.c_cr > 0 else np.nan,
+    }
+
+
+# ---------------------------
+# SRO / pair plotting helpers
+# ---------------------------
+SRO_AXES = {
+    "FeFe": (0, 0),
+    "CrFe": (1, 0),
+    "FeCr": (0, 1),
+    "CrCr": (1, 1),
+}
+
+
+def plot_sro_point_grid(ax_grid, stats, values, label_prefix):
+    for pair_name, value in values.items():
+        i, j = SRO_AXES[pair_name]
+        ax_grid[i][j].plot(
+            [stats.c_cr],
+            [value],
+            "ko",
+            label=f"{stats.variant_str}_{label_prefix}_{pair_name}",
+            alpha=0.5,
+            markerfacecolor="none",
+        )
+
+
+def add_random_pair_fraction_lines(ax_grid):
+    x = np.linspace(0, 1, 50)
+
+    ax_grid[0][0].plot(x, (1 - x) ** 2, "r--", alpha=0.5)
+    ax_grid[0][1].plot(x, 2 * x * (1 - x), "r--", alpha=0.5)
+    ax_grid[1][0].plot(x, 2 * x * (1 - x), "r--", alpha=0.5)
+    ax_grid[1][1].plot(x, x**2, "r--", alpha=0.5)
+
+
+def add_alpha_reference_lines(ax_grid):
+    x = np.linspace(0.01, 0.99, 100)
+    ordered_cross = [
+        1 - 2 * min(ci, 1 - ci) / (2 * ci * (1 - ci))
+        for ci in x
+    ]
+
+    ax_grid[0][1].plot(x, ordered_cross, "--", label="ordered", alpha=0.5)
+    ax_grid[1][0].plot(x, ordered_cross, "--", label="ordered", alpha=0.5)
+
+    ax_grid[0][1].plot([0, 1], [0, 0], "r--", label="random", alpha=0.5)
+    ax_grid[1][0].plot([0, 1], [0, 0], "r--", label="random", alpha=0.5)
+    ax_grid[0][0].plot([0, 1], [0, 0], "r--", label="random", alpha=0.5)
+    ax_grid[1][1].plot([0, 1], [0, 0], "r--", label="random", alpha=0.5)
+
+    ax_grid[0][0].plot([0, 1], [1, 1], "b--", label="ordered", alpha=0.5)
+    ax_grid[1][1].plot([0, 1], [1, 1], "b--", label="ordered", alpha=0.5)
+
+
+def set_grid_ylim(ax_grid, lims_y):
+    if lims_y is None:
+        return
+
+    for ax in ax_grid.flatten():
+        ax.set_ylim(*lims_y)
+
+
+def format_a_sro_axes(ax_grid):
+    labels = {
+        "FeFe": (r"$a_{FeFe}$", r"$Fe-Fe$"),
+        "CrFe": (r"$a_{CrFe}$", r"$Cr-Fe$"),
+        "FeCr": (r"$a_{FeCr}$", r"$Fe-Cr$"),
+        "CrCr": (r"$a_{CrCr}$", r"$Cr-Cr$"),
+    }
+
+    for pair_name, (ylabel, title) in labels.items():
+        i, j = SRO_AXES[pair_name]
+        ax = ax_grid[i][j]
+        ax.set_xlabel(r"$x_{Cr}$")
+        ax.set_ylabel(ylabel)
+        ax.set_title(title)
         ax.axhline(y=0, color="k", linestyle="--", linewidth=0.5)
 
-
-def plot_pair_probability_sro(axSRO, variant_strings, relax_dir, cutoff, number_of_NN, NATOMS):
-
-    for variant_str in variant_strings:
-        formula, cell, basis = load_variant_cell(relax_dir, variant_str)
-        types_list, c_fe_frac, c_cr, n_fe = parse_formula(formula)
-
-        # Preserve original script behavior:
-        # original code overwrote c_Fe with the integer number of Fe atoms.
-        c_fe = types_list.count("Fe")
-        nal = c_fe
-
-        distances, npairs, combtypes = pa(formula, cutoff * 2, basis, cell)
-        distances, npairs = distances[:number_of_NN], npairs[:number_of_NN]
-
-        fe_fe_pairs, fe_cr_pairs, cr_cr_pairs = get_pair_totals(npairs, combtypes, nal, NATOMS)
-        total_pairs = fe_fe_pairs + fe_cr_pairs + cr_cr_pairs
-
-        P_fe_fe = fe_fe_pairs / total_pairs
-        P_fe_cr = fe_cr_pairs / total_pairs
-        P_cr_cr = cr_cr_pairs / total_pairs
-
-        alpha_fe_fe = 1 - (P_fe_fe / (c_fe ** 2)) if c_fe != 0 else float("nan")
-        alpha_fe_cr = 1 - (P_fe_cr / (2 * c_fe * c_cr)) if (c_fe != 0 and c_cr != 0) else float("nan")
-        alpha_cr_cr = 1 - (P_cr_cr / (c_cr ** 2)) if c_cr != 0 else float("nan")
-
-        axSRO[0][0].plot([c_cr], [alpha_fe_fe], "ko", alpha=0.5, markerfacecolor="none")
-        axSRO[1][0].plot([c_cr], [alpha_fe_cr], "ko", alpha=0.5, markerfacecolor="none")
-        axSRO[0][1].plot([c_cr], [alpha_fe_cr], "ko", alpha=0.5, markerfacecolor="none")
-        axSRO[1][1].plot([c_cr], [alpha_cr_cr], "ko", alpha=0.5, markerfacecolor="none")
-
-    axSRO[0][0].set_xlabel(r"$x_{Cr}$")
-    axSRO[0][0].set_ylabel(r"$\alpha_{FeFe}$")
-    axSRO[0][0].set_title(r"$Fe-Fe$")
-
-    axSRO[1][0].set_xlabel(r"$x_{Cr}$")
-    axSRO[1][0].set_ylabel(r"$\alpha_{CrFe}$")
-    axSRO[1][0].set_title(r"$Cr-Fe$")
-
-    axSRO[0][1].set_xlabel(r"$x_{Cr}$")
-    axSRO[0][1].set_ylabel(r"$\alpha_{FeCr}$")
-    axSRO[0][1].set_title(r"$Fe-Cr$")
-
-    axSRO[1][1].set_xlabel(r"$x_{Cr}$")
-    axSRO[1][1].set_ylabel(r"$\alpha_{CrCr}$")
-    axSRO[1][1].set_title(r"$Cr-Cr$")
-
-    x_idwc = np.linspace(0.01, 0.99, 100)
-
-    axSRO[0][1].plot(
-        x_idwc,
-        [1 - 2 * min([ci, (1 - ci)]) / (2 * ci * (1 - ci)) for ci in x_idwc],
-        "--",
-        alpha=0.5,
-    )
-    axSRO[1][0].plot([0, 1], [0, 0], "r--", alpha=0.5)
-    axSRO[1][0].plot(
-        x_idwc,
-        [1 - 2 * min([ci, (1 - ci)]) / (2 * ci * (1 - ci)) for ci in x_idwc],
-        "--",
-        alpha=0.5,
-    )
-
-    axSRO[0][1].plot([0, 1], [0, 0], "r--", alpha=0.5)
-    axSRO[0][0].plot([0, 1], [0, 0], "r--", alpha=0.5)
-    axSRO[1][1].plot([0, 1], [0, 0], "r--", alpha=0.5)
-
-    axSRO[0][0].plot([0, 1], [1, 1], "b--", alpha=0.5)
-    axSRO[1][1].plot([0, 1], [1, 1], "b--", alpha=0.5)
-
-    for ax in axSRO.flatten():
-        ax.set_xlim(0, 1)
+    ax_grid[0][0].axhline(y=1, color="k", linestyle="--", linewidth=0.5)
+    ax_grid[1][1].axhline(y=1, color="k", linestyle="--", linewidth=0.5)
+    ax_grid[1][0].axhline(y=-1, color="k", linestyle="--", linewidth=0.5)
+    ax_grid[0][1].axhline(y=-1, color="k", linestyle="--", linewidth=0.5)
 
 
-def plot_pair_fraction_and_average_distance(axSRO, ax_av_iterdistance, variant_strings, relax_dir, cutoff, number_of_NN, NATOMS):
-
-
+# ---------------------------
+# Public SRO / pair plots
+# ---------------------------
+def plot_avd_sro(
+    ax_av_iterdistance,
+    variant_strings,
+    RELAX_DIR,
+    cutoff,
+    n_pairs_ideal,
+    lims_y=None,
+):
     avd_fe = 0
     avd_cr = 0
     avd_list_x = []
     avd_list_y = []
+    last_variant_str = ""
 
-    for variant_str in variant_strings:
-        formula, cell, basis = load_variant_cell(relax_dir, variant_str)
-        _, c_fe, c_cr, n_fe = parse_formula(formula)
+    for stats in iter_variant_pair_stats(variant_strings, RELAX_DIR, cutoff, n_pairs_ideal):
+        average_distance = compute_average_pair_distance(stats)
 
-        distances, npairs, combtypes = pa(formula, cutoff, basis, cell)
-        distances, npairs = distances[:number_of_NN], npairs[:number_of_NN]
-
-        N = npairs.sum(axis=1)
-        average_distance = np.dot(distances, N) / N.sum()
-
-        avd_list_x.append(c_cr)
+        avd_list_x.append(stats.c_cr)
         avd_list_y.append(average_distance)
+        last_variant_str = stats.variant_str
 
-        fe_fe_pairs, fe_cr_pairs, cr_cr_pairs = get_pair_totals(npairs, combtypes, n_fe, NATOMS)
-
-        if n_fe == 0:
+        if stats.c_fe == 0:
             avd_cr = average_distance
-        elif n_fe == NATOMS:
+        if stats.c_fe == 1:
             avd_fe = average_distance
 
-        total_pairs = fe_fe_pairs + fe_cr_pairs + cr_cr_pairs
-        x_fe_fe = fe_fe_pairs / total_pairs
-        x_cr_cr = cr_cr_pairs / total_pairs
-        x_fe_cr = fe_cr_pairs / total_pairs
+    x_ideal = np.linspace(0, 1, 50)
+    avd_ideal = [(1 - x) * avd_fe + x * avd_cr for x in x_ideal]
 
-        axSRO[0][0].plot([c_cr], [x_fe_fe], "ko", alpha=0.5, markerfacecolor="none")
-        axSRO[1][0].plot([c_cr], [x_fe_cr], "ko", alpha=0.5, markerfacecolor="none")
-        axSRO[0][1].plot([c_cr], [x_fe_cr], "ko", alpha=0.5, markerfacecolor="none")
-        axSRO[1][1].plot([c_cr], [x_cr_cr], "ko", alpha=0.5, markerfacecolor="none")
+    ax_av_iterdistance.plot(
+        avd_list_x,
+        avd_list_y,
+        "ko",
+        label=f"{last_variant_str}_average_distance",
+        alpha=0.5,
+        markerfacecolor="none",
+    )
+    ax_av_iterdistance.plot(x_ideal, avd_ideal, "k-", alpha=0.5, label="ideal")
 
-    axSRO[0][0].set_xlabel(r"$x_{Cr}$", fontsize=12)
-    axSRO[0][0].set_ylabel(r"$x_{FeFe}$", fontsize=12)
-    axSRO[0][0].set_title(r"$Fe-Fe$", y=0.99)
+    if lims_y is not None:
+        ax_av_iterdistance.set_ylim(*lims_y)
 
-    axSRO[1][0].set_xlabel(r"$x_{Cr}$", fontsize=12)
-    axSRO[1][0].set_ylabel(r"$x_{CrFe}$", fontsize=12)
-    axSRO[1][0].set_title(r"$Cr-Fe$", y=0.99)
 
-    axSRO[0][1].set_xlabel(r"$x_{Cr}$", fontsize=12)
-    axSRO[0][1].set_ylabel(r"$x_{FeCr}$", fontsize=12)
-    axSRO[0][1].set_title(r"$Fe-Cr$", y=0.99)
+def plot_x_sro(axSRO3, variant_strings, RELAX_DIR, cutoff, n_pairs_ideal):
+    for stats in iter_variant_pair_stats(variant_strings, RELAX_DIR, cutoff, n_pairs_ideal):
+        plot_sro_point_grid(
+            axSRO3,
+            stats,
+            compute_pair_fractions(stats),
+            label_prefix="x",
+        )
 
-    axSRO[1][1].set_xlabel(r"$x_{Cr}$", fontsize=12)
-    axSRO[1][1].set_ylabel(r"$x_{CrCr}$", fontsize=12)
-    axSRO[1][1].set_title(r"$Cr-Cr$", y=0.99)
+    add_random_pair_fraction_lines(axSRO3)
 
-    for ax in axSRO.flatten():
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
-        ax.axhline(y=0, color="k", linestyle="--", linewidth=0.5)
-        ax.axhline(y=1, color="k", linestyle="--", linewidth=0.5)
 
-    x_cr_ideal = np.linspace(0, 1, 50)
-    x_fe_fe_ideal = [(1 - x) ** 2 for x in x_cr_ideal]
-    x_cr_cr_ideal = [x ** 2 for x in x_cr_ideal]
-    x_fe_cr_ideal = [2 * x * (1 - x) for x in x_cr_ideal]
+def plot_alpha_sro(
+    axSRO2,
+    variant_strings,
+    RELAX_DIR,
+    cutoff,
+    n_pairs_ideal,
+    lims_y=None,
+):
+    for stats in iter_variant_pair_stats(variant_strings, RELAX_DIR, cutoff, n_pairs_ideal):
+        plot_sro_point_grid(
+            axSRO2,
+            stats,
+            compute_alpha_sro(stats),
+            label_prefix="alpha",
+        )
 
-    axSRO[0][0].plot(x_cr_ideal, x_fe_fe_ideal, "r--", alpha=0.5)
-    axSRO[0][1].plot(x_cr_ideal, x_fe_cr_ideal, "r--", alpha=0.5)
-    axSRO[1][0].plot(x_cr_ideal, x_fe_cr_ideal, "r--", alpha=0.5)
-    axSRO[1][1].plot(x_cr_ideal, x_cr_cr_ideal, "r--", alpha=0.5)
+    add_alpha_reference_lines(axSRO2)
+    set_grid_ylim(axSRO2, lims_y)
 
-    av_d_ideal = [(1 - x) * avd_fe + x * avd_cr for x in x_cr_ideal]
-    ax_av_iterdistance.plot(avd_list_x, avd_list_y, "ko", alpha=0.5, markerfacecolor="none")
-    ax_av_iterdistance.plot(x_cr_ideal, av_d_ideal, "k-", alpha=0.5, label="ideal")
+
+def plot_a_sro(axSRO, variant_strings, RELAX_DIR, cutoff, n_pairs_ideal):
+    for stats in iter_variant_pair_stats(variant_strings, RELAX_DIR, cutoff, n_pairs_ideal):
+        plot_sro_point_grid(
+            axSRO,
+            stats,
+            compute_directional_sro(stats),
+            label_prefix="a",
+        )
+
+    format_a_sro_axes(axSRO)
