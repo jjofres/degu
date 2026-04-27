@@ -12,6 +12,8 @@ from debyetools.pairanalysis import pair_analysis as pa
 
 
 cmap = plt.colormaps["rainbow"]
+LEFT_ELEMENT = "Fe"
+RIGHT_ELEMENT = "Cr"
 
 
 # ---------------------------
@@ -467,9 +469,15 @@ def find_npairs_ix(npairs, np_sum):
 
     return len(npairs)
 
-
-def get_variant_pair_stats(variant_str, relax_dir, cutoff, n_pairs_ideal):
-    types_str, cell, basis = load_variant_cell(relax_dir, variant_str)
+def get_variant_cell_data(variant_str, crystal_data_dict):
+    types_str_dict, cell_dict, basis_dict = crystal_data_dict
+    return (
+        types_str_dict[variant_str],
+        cell_dict[variant_str],
+        basis_dict[variant_str],
+    )
+def get_variant_pair_stats(variant_str, cutoff, n_pairs_ideal, crystal_data_dict):
+    types_str, cell, basis = get_variant_cell_data(variant_str, crystal_data_dict)
     concentrations = parse_type_concentrations(types_str)
 
     distances, npairs, combtypes = pa(types_str, cutoff, basis, cell)
@@ -478,30 +486,41 @@ def get_variant_pair_stats(variant_str, relax_dir, cutoff, n_pairs_ideal):
     distances = distances[:number_of_nn]
     npairs = npairs[:number_of_nn]
 
-    npairs_fe_fe = get_pair_column(npairs, combtypes, "Fe-Fe")
-    npairs_fe_cr = get_pair_column(npairs, combtypes, "Cr-Fe", "Fe-Cr")
-    npairs_cr_cr = get_pair_column(npairs, combtypes, "Cr-Cr")
+    left_left_name = f"{LEFT_ELEMENT}-{LEFT_ELEMENT}"
+    left_right_name = f"{LEFT_ELEMENT}-{RIGHT_ELEMENT}"
+    right_left_name = f"{RIGHT_ELEMENT}-{LEFT_ELEMENT}"
+    right_right_name = f"{RIGHT_ELEMENT}-{RIGHT_ELEMENT}"
+
+    npairs_left_left = get_pair_column(npairs, combtypes, left_left_name)
+    npairs_left_right = get_pair_column(
+        npairs,
+        combtypes,
+        right_left_name,
+        fallback_pair_name=left_right_name,
+    )
+    npairs_right_right = get_pair_column(npairs, combtypes, right_right_name)
 
     return VariantPairStats(
         variant_str=variant_str,
-        c_fe=concentrations["c_fe"],
-        c_cr=concentrations["c_cr"],
+        c_left=concentrations["c_left"],
+        c_right=concentrations["c_right"],
         distances=distances,
         npairs=npairs,
-        n_fe_fe=sum(npairs_fe_fe),
-        n_fe_cr=sum(npairs_fe_cr),
-        n_cr_cr=sum(npairs_cr_cr),
+        n_left_left=sum(npairs_left_left),
+        n_left_right=sum(npairs_left_right),
+        n_right_right=sum(npairs_right_right),
     )
 
 
-def iter_variant_pair_stats(variant_strings, relax_dir, cutoff, n_pairs_ideal):
+def iter_variant_pair_stats(variant_strings, cutoff, n_pairs_ideal, crystal_data_dict):
     for variant_str in variant_strings:
         yield get_variant_pair_stats(
             variant_str,
-            relax_dir,
             cutoff,
             n_pairs_ideal,
+            crystal_data_dict,
         )
+
 
 
 def safe_divide(numerator, denominator):
