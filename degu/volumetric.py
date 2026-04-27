@@ -415,25 +415,25 @@ def plot_vmix_convex_hulls_and_vegard(
 @dataclass
 class VariantPairStats:
     variant_str: str
-    c_fe: float
-    c_cr: float
+    c_left: float
+    c_right: float
     distances: np.ndarray
     npairs: np.ndarray
-    n_fe_fe: float
-    n_fe_cr: float
-    n_cr_cr: float
+    n_left_left: float
+    n_left_right: float
+    n_right_right: float
 
     @property
     def total_pairs(self):
-        return self.n_fe_fe + self.n_fe_cr + self.n_cr_cr
+        return self.n_left_left + self.n_left_right + self.n_right_right
 
     @property
-    def n_fe_neighbors(self):
-        return 2 * self.n_fe_fe + self.n_fe_cr
+    def n_left_neighbors(self):
+        return 2 * self.n_left_left + self.n_left_right
 
     @property
-    def n_cr_neighbors(self):
-        return 2 * self.n_cr_cr + self.n_fe_cr
+    def n_right_neighbors(self):
+        return 2 * self.n_right_right + self.n_left_right
 
 
 def load_variant_cell(relax_dir, variant_str):
