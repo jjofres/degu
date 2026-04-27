@@ -12,8 +12,8 @@ from debyetools.pairanalysis import pair_analysis as pa
 
 
 cmap = plt.colormaps["rainbow"]
-LEFT_ELEMENT = "Fe"
-RIGHT_ELEMENT = "Cr"
+LEFT_ELEMENT = "Aa"
+RIGHT_ELEMENT = "Bb"
 
 
 # ---------------------------
@@ -759,3 +759,13 @@ def plot_a_sro(axSRO, variant_strings, RELAX_DIR, cutoff, n_pairs_ideal):
         plot_sro_point_grid(axSRO, stats, compute_directional_sro(stats), label_prefix="a", )
 
     format_a_sro_axes(axSRO)
+
+def get_crystal_data_dict(variant_strings, RELAX_DIR):
+    types_str_dict, cell_dict, basis_dict = {}, {}, {}
+    for v in variant_strings:
+        t, c, b = load_cell(RELAX_DIR / v / "relaxation" / "CONTCAR")
+        types_str_dict[v] = t
+        cell_dict[v] = c
+        basis_dict [v] = b
+    crystal_data_dict = types_str_dict, cell_dict, basis_dict
+    return crystal_data_dict
