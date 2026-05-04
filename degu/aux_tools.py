@@ -85,7 +85,7 @@ def get_cpu_etot(ecut, ks, datacontainer_log, s, sx,str_spec='Ca-Sr'):
     dc2 = (datacontainer_log
            .filter_by_value("KSPACING", ks)
            .filter_by_value("ENCUT", ecut)
-           .filter_by_value("path", f"calcs_conv_{ecut}_{ks:.2f}/{str_spec}/{s}/{sx}/relaxation"))
+           .filter_by_value("path", f"calcs_conv_{ecut}_{ks:.2f}/{str_spec}/{s}/{sx}/this_run"))
 
     if len(dc2["CPU_time_s"]) == 0:
         return None, None
