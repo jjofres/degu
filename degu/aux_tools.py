@@ -1,7 +1,6 @@
 import re
 from typing import List, Dict, Any
-
-import numpy as np
+import shutil
 
 
 def extract_convergence_data(log_path: str) -> List[Dict[str, Any]]:
@@ -892,3 +891,51 @@ def print_sumtest(dc_conv_test):
     for encut in sorted(set(dc_conv_test['encut'])):
         dc_encut = dc_jobs_err.filter_by_value('encut', encut)
         print(f'  - {encut}: {len(dc_encut)}')
+
+
+def copy_first_kpoints_to_sx_dirs(s_path: str | Path) -> Path:
+    base = Path(s_path)
+
+    if not base.is_dir():
+        raise NotADirectoryError(f"{base} is not a valid directory")
+
+    sx_dirs = sorted(
+        p for p in base.iterdir()
+        if p.is_dir() and p.name.startswith("sx_")
+    )
+
+    source = next(
+        (d / "KPOINTS" for d in sx_dirs if (d / "KPOINTS").is_file()),
+        None
+    )
+
+    if source is None:
+        raise FileNotFoundError(f"No KPOINTS file found in sx_* folders under {base}")
+
+    for d in sx_dirs:
+        dest = d / "KPOINTS"
+
+        if dest.resolve() == source.resolve():
+            continue
+
+        shutil.copy2(source, dest)
+
+    return source
+
+
+def copy_kpoints_for_all_s_dirs(parent_path: str | Path = ".") -> None:
+    parent = Path(parent_path)
+
+    s_dirs = sorted(
+        p for p in parent.iterdir()
+        if p.is_dir() and p.name.startswith("s_")
+    )
+
+    for s_dir in s_dirs:
+        try:
+            source = copy_first_kpoints_to_sx_dirs(s_dir)
+            print(f"[OK] {s_dir}: copied from {source}")
+        except FileNotFoundError as e:
+            print(f"[SKIP] {s_dir}: {e}")
+        except Exception as e:
+            print(f"[ERROR] {s_dir}: {e}")
