@@ -682,7 +682,7 @@ def extract_kpoints_from_log(log_filepath, encut, kspacing):
         stripped = line.rstrip("\n")
 
         # Start of a new block: "0: calcs_conv_420_0.10/Ca-Sr/s_0/sx_0/relaxation"
-        m = re.match(r"^\s*\d+:\s+(.*?/relaxation)\s*$", stripped)
+        m = re.match(r"^\s*\d+:\s+(.*?/this_run)\s*$", stripped)
         if m:
             finalize_current(current)
 
