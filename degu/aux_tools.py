@@ -1,6 +1,8 @@
 import re
 from typing import List, Dict, Any
 import shutil
+import random
+import math
 
 
 def extract_convergence_data(log_path: str) -> List[Dict[str, Any]]:
@@ -939,3 +941,62 @@ def copy_kpoints_for_all_s_dirs(parent_path: str | Path = ".") -> None:
             print(f"[SKIP] {s_dir}: {e}")
         except Exception as e:
             print(f"[ERROR] {s_dir}: {e}")
+
+
+def sample_sx_paths(root, sp, seed=None, include_sx_without_underscore=False):
+    root = Path(root)
+
+    if not 0 <= sp <= 1:
+        raise ValueError("sp must be between 0 and 1")
+
+    rng = random.Random(seed)
+
+    s_dirs = sorted(
+        [p for p in root.glob("s_*") if p.is_dir()],
+        key=lambda p: int(p.name.split("_")[1])
+    )
+
+    sx_pattern = "sx*" if include_sx_without_underscore else "sx_*"
+
+    sampled = {}
+
+    for s_dir in s_dirs:
+        sx_dirs = sorted(
+            [p for p in s_dir.glob(sx_pattern) if p.is_dir()],
+            key=lambda p: p.name
+        )
+
+        n_sample = math.ceil(sp * len(sx_dirs))
+
+        sampled_sx_dirs = sorted(
+            rng.sample(sx_dirs, n_sample),
+            key=lambda p: p.name
+        )
+
+        sampled[s_dir] = sampled_sx_dirs
+
+    return sampled
+
+
+def copy_sampled_sx_paths(sampled, output_root):
+    output_root = Path(output_root)
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    copied_paths = []
+
+    for s_dir, sx_paths in sampled.items():
+        new_s_dir = output_root / s_dir.name
+        new_s_dir.mkdir(parents=True, exist_ok=True)
+
+        for sx_path in sx_paths:
+            destination = new_s_dir / sx_path.name
+
+            shutil.copytree(
+                sx_path,
+                destination,
+                dirs_exist_ok=True
+            )
+
+            copied_paths.append(destination)
+
+    return copied_paths
