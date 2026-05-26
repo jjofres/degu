@@ -322,7 +322,7 @@ def sort_EvV_by_volume(EvV_data):
     return sorted_data
 
 
-def extract_EvV(log_path, elastic=False):
+def extract_EvV(log_path, elastic=False, elements = ('Cr', 'Fe')):
     if not elastic:
         # Block header: "378: calcs_EvV/Ca-Sr/s_0/sx_0/100"
         header_re = re.compile(r'^\s*\d+:\s+(\S+)')
@@ -342,8 +342,8 @@ def extract_EvV(log_path, elastic=False):
     toten_re = re.compile(r'\bTOTEN_eV:\s*' + float_pat)
     vol_re = re.compile(r'\bfinal_volume_A3:\s*' + float_pat)
     mass_re = re.compile(r'\btotal_mass_g:\s*' + float_pat)
-    count_Fe_re = re.compile(r'\bcount_Fe:\s*' + float_pat)
-    count_Cr_re = re.compile(r'\bcount_Cr:\s*' + float_pat)
+    count_Fe_re = re.compile(r'\bcount_'+elements[1]+r':\s*' + float_pat)
+    count_Cr_re = re.compile(r'\bcount_'+elements[0]+r':\s*' + float_pat)
     # count_Sr_re = re.compile(r'\bcount_Sr:\s*' + float_pat)
 
     # data["s_0/sx_0"] = {"NIONS": [...], "TOTEN": [...], "final_volume_A3": [...]}
