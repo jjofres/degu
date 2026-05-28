@@ -275,7 +275,7 @@ from collections import defaultdict
 from typing import Dict, List, Union
 
 
-def sort_EvV_by_volume(EvV_data, elements = ('Cr', 'Fe')):
+def sort_EvV_by_volume(EvV_data, elements):
     sorted_data = {}
 
     for struct, vals in EvV_data.items():
@@ -450,7 +450,7 @@ def extract_EvV(log_path, elastic=False, elements = ('Cr', 'Fe')):
     flush_current()
 
     result = dict(data)
-    EvV_data_all = sort_EvV_by_volume(result)
+    EvV_data_all = sort_EvV_by_volume(result, elements)
 
     return EvV_data_all
 
