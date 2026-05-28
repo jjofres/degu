@@ -380,8 +380,8 @@ def extract_EvV(log_path, elastic=False, elements = ('Cr', 'Fe')):
             entry["TOTEN"].append(current_toten)
             entry["final_volume_A3"].append(current_vol)
             entry["total_mass_g"].append(current_mass)
-            entry["count_Fe"].append(current_count_Fe)
-            entry["count_Cr"].append(current_count_Cr)
+            entry[f"count_{elements[1]}"].append(current_count_Fe)
+            entry[f"count_{elements[0]}"].append(current_count_Cr)
             # entry["count_Sr"].append(current_count_Sr)
 
     with open(log_path, "r", encoding="utf-8", errors="replace") as f:
