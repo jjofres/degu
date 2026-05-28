@@ -275,7 +275,7 @@ from collections import defaultdict
 from typing import Dict, List, Union
 
 
-def sort_EvV_by_volume(EvV_data):
+def sort_EvV_by_volume(EvV_data, elements = ('Cr', 'Fe')):
     sorted_data = {}
 
     for struct, vals in EvV_data.items():
@@ -283,8 +283,8 @@ def sort_EvV_by_volume(EvV_data):
         Es = vals.get("TOTEN", [])
         Ns = vals.get("NIONS", [])
         mass = vals.get("total_mass_g", [])
-        count_Fe = vals.get("count_Fe", [])
-        count_Cr = vals.get("count_Cr", [])
+        count_Fe = vals.get(f"count_{elements[1]}", [])
+        count_Cr = vals.get(f"count_{elements[0]}", [])
         # count_Sr = vals.get("count_Sr", [])
 
         # If nothing there, just copy as-is
@@ -294,8 +294,8 @@ def sort_EvV_by_volume(EvV_data):
                 "TOTEN": list(Es),
                 "final_volume_A3": list(vols),
                 "total_mass_g": list(mass),
-                "count_Fe": list(count_Fe),
-                "count_Cr": list(count_Cr),
+                f"count_{elements[1]}": list(count_Fe),
+                f"count_{elements[0]}": list(count_Cr),
                 # "count_Sr": list(count_Sr),
             }
             continue
@@ -313,8 +313,8 @@ def sort_EvV_by_volume(EvV_data):
             "TOTEN": sorted_Es,
             "final_volume_A3": sorted_vols,
             "total_mass_g": sorted_mass,
-            "count_Fe": sorted_count_Fe,
-            "count_Cr": sorted_count_Cr,
+            f"count_{elements[1]}": sorted_count_Fe,
+            f"count_{elements[0]}": sorted_count_Cr,
             # "count_Sr": sorted_count_Sr,
 
         }
