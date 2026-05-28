@@ -348,7 +348,7 @@ def extract_EvV(log_path, elastic=False, elements = ('Cr', 'Fe')):
 
     # data["s_0/sx_0"] = {"NIONS": [...], "TOTEN": [...], "final_volume_A3": [...]}
     data: Dict[str, Dict[str, List[Union[int, float]]]] = defaultdict(
-        lambda: {"NIONS": [], "TOTEN": [], "final_volume_A3": [], "total_mass_g": [], f"count_{elements[1]}": [], f"count_{elements[1]}": [],
+        lambda: {"NIONS": [], "TOTEN": [], "final_volume_A3": [], "total_mass_g": [], f"count_{elements[1]}": [], f"count_{elements[0]}": [],
                  # "count_Sr": [],
                  }
     )
