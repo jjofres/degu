@@ -83,15 +83,18 @@ def list_of_dicts_to_dict_of_lists(data: List[Dict[str, Any]]) -> Dict[str, List
 
 
 def get_cpu_etot(ecut, ks, datacontainer_log, s, sx,str_spec='Ca-Sr'):
+    """CPU time and total energy of the convergence run calcs_conv_<ecut>_<ks>/<str_spec>/<s>/<sx>/<run folder>.
+
+    Any run folder name is accepted ('this_run', 'relaxation', ...); with several matches the last one is used.
+    """
     dc2 = (datacontainer_log
            .filter_by_value("KSPACING", ks)
-           .filter_by_value("ENCUT", ecut)
-           .filter_by_value("path", f"calcs_conv_{ecut}_{ks:.2f}/{str_spec}/{s}/{sx}/this_run"))
-
-    if len(dc2["CPU_time_s"]) == 0:
+           .filter_by_value("ENCUT", ecut))
+    prefix = f"calcs_conv_{int(ecut)}_{float(ks):.2f}/{str_spec}/{s}/{sx}/"
+    idx = [i for i, p in enumerate(dc2["path"]) if str(p).strip().startswith(prefix)]
+    if not idx:
         return None, None
-    else:
-        return dc2["CPU_time_s"][0], dc2["Etot"][0]
+    return dc2["CPU_time_s"][idx[-1]], dc2["Etot"][idx[-1]]
 
 
 from coypus.datacontainer import DataContainer as dc
@@ -322,7 +325,16 @@ def sort_EvV_by_volume(EvV_data, elements):
     return sorted_data
 
 
-def extract_EvV(log_path, elastic=False, elements = ('Cr', 'Fe')):
+def extract_EvV(log_path, elastic=False, elements=None):
+    """E(V) data per structure from a check log. elements = the two element symbols of the system (any order);
+    default None = read them from the 'count_<El>:' lines of the log (was ('Cr', 'Fe'), which silently dropped every
+    run of any other system)."""
+    if elements is None:
+        with open(log_path, "r", encoding="utf-8", errors="replace") as fh:
+            found = sorted(set(re.findall(r'\bcount_([A-Z][a-z]?):', fh.read())))
+        if len(found) != 2:
+            raise ValueError(f"extract_EvV: expected 2 elements in {log_path}, found {found}; pass elements=(A, B)")
+        elements = tuple(found)
     if not elastic:
         # Block header: "378: calcs_EvV/Ca-Sr/s_0/sx_0/100"
         header_re = re.compile(r'^\s*\d+:\s+(\S+)')
@@ -682,8 +694,9 @@ def extract_kpoints_from_log(log_filepath, encut, kspacing):
     for line in lines:
         stripped = line.rstrip("\n")
 
-        # Start of a new block: "0: calcs_conv_420_0.10/Ca-Sr/s_0/sx_0/relaxation"
-        m = re.match(r"^\s*\d+:\s+(.*?/this_run)\s*$", stripped)
+        # Start of a new block: "0: calcs_conv_420_0.10/Ca-Sr/s_0/sx_0/relaxation" (any run folder name, e.g.
+        # 'this_run' or 'relaxation'), optionally followed by "   [slurm-<job>_<task>.out]" (recheck_runs.sh)
+        m = re.match(r"^\s*\d+:\s+(\S+?)(?:\s+\[[^\]]*\])?\s*$", stripped.rstrip("\r"))
         if m:
             finalize_current(current)
 
@@ -745,6 +758,7 @@ def write_kpoints_to_files(kps_txt, base_dir):
 
         with open(kp_path_destination, "w", encoding="utf-8") as f:
             f.write(kp_text)
+    return len(kps_txt["kp_path"])                      # number of KPOINTS files written
 
 
 def count_if(lst, value):
