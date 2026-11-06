@@ -24,10 +24,17 @@ def parse_outcar(outcar_path):
 def quadratic_fun(delta, eps, E0, V0):
     return E0 + V0/2 * eps * delta**2
 
-def get_EM(base_dir):
+def get_EM(base_dir, deformations=None):
+    """Elastic matrix from the strained runs <base_dir>/eps1..eps9/<deformation>/OUTCAR.
 
-    # Base directory containing d1 to d6 folders
-    # base_dir = './elastic/'
+    deformations: deformation folder names in percent (e.g. [98, 99, 100, 101, 102]); default None = the numeric
+    sub-folders of eps1 (was hard-coded '98'..'102'). '100' (undeformed) is required.
+    """
+    if deformations is None:
+        deformations = sorted(int(n) for n in os.listdir(os.path.join(base_dir, 'eps1')) if n.isdigit())
+    deformations = [str(int(d)) for d in deformations]
+    if '100' not in deformations:
+        raise ValueError(f'get_EM: the undeformed folder 100 is missing in {deformations}')
 
     # Prepare a list to store the epsilon values
     epsilons = []
@@ -39,8 +46,8 @@ def get_EM(base_dir):
         strains = []
         energies = []
 
-        # Loop over subfolders '98' to '102'
-        for delta_folder in ['98', '99', '100', '101', '102']:
+        # Loop over the deformation subfolders (e.g. '98' to '102')
+        for delta_folder in deformations:
             sub_folder = os.path.join(d_folder, delta_folder)
             outcar_path = os.path.join(sub_folder, 'OUTCAR')
 

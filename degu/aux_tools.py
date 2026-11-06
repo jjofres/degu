@@ -490,11 +490,9 @@ def mass_to_g_per_mol(mass_grams, natoms):
     return mass_grams / natoms * 6.02214076e23
 
 
-def NfV_function(E, N, Ef):
-    ixss = 6
-    ixse = -1
-
-    ix_V0 = 4
+def NfV_function(E, N, Ef, ix_V0=4, ixss=6, ixse=-1):
+    """N(Ef) vs volume from the DOS of each volume. ix_V0: index of the reference volume; [ixss:ixse]: volumes
+    returned. The defaults are the values used for the 21-point grid 70..130 % (82 % reference, 88..127 %)."""
     EfV0 = float(Ef[ix_V0])
     ixs = [i for i, x in enumerate(E[ix_V0]) if x >= Ef[ix_V0]]
     E1 = float(E[ix_V0][ixs[0] - 1])
